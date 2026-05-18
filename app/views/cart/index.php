@@ -1,151 +1,169 @@
-<?php
-require_once('app/config/database.php');
-require_once('app/models/CartModel.php');
-require_once('app/models/ProductModel.php');
+<?php include 'app/views/shares/header.php'; ?>
 
-class CartController {
+<div class="container mt-4">
 
-    private CartModel $cartModel;
-    private ProductModel $productModel;
-    private $db;
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-shopping-cart text-primary"></i>
+            Giỏ hàng
+        </h2>
 
-    public function __construct() {
-        if (session_status() === PHP_SESSION_NONE) session_start();
-        $this->db           = (new Database())->getConnection();
-        $this->cartModel    = new CartModel($this->db);
-        $this->productModel = new ProductModel($this->db);
-    }
+        <a href="/Product" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left"></i>
+            Tiếp tục mua
+        </a>
+    </div>
 
-    // ── Xem giỏ hàng ──────────────────────────────────────────────────────
-    public function index(): void {
-        $cartItems  = $this->cartModel->getCart();
-        $totalPrice = $this->cartModel->getTotalPrice();
-        include 'app/views/cart/index.php';
-    }
+    <?php if (empty($cartItems)): ?>
 
-    // ── Thêm vào giỏ ──────────────────────────────────────────────────────
-    public function add(): void {
-        $productId = (int)($_POST['product_id'] ?? 0);
-        $qty       = max(1, (int)($_POST['quantity'] ?? 1));
+        <div class="alert alert-info text-center p-5">
+            <h4>Giỏ hàng đang trống 🛒</h4>
+            <p>Hãy thêm sản phẩm vào giỏ hàng</p>
+        </div>
 
-        $product = $this->productModel->getProductById($productId);
-        if (!$product) {
-            $this->jsonResponse(['success' => false, 'message' => 'Sản phẩm không tồn tại']);
-            return;
-        }
+    <?php else: ?>
 
-        $this->cartModel->addItem(
-            $productId,
-            $product->name,
-            (int)$product->price,
-            $product->image ?? '',
-            $qty
-        );
+        <div class="card shadow-sm border-0">
+            <div class="table-responsive">
 
-        $this->jsonResponse([
-            'success'   => true,
-            'message'   => 'Đã thêm vào giỏ hàng!',
-            'cartCount' => $this->cartModel->getTotalQty(),
-        ]);
-    }
+                <table class="table align-middle mb-0">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Sản phẩm</th>
+                            <th>Giá</th>
+                            <th width="150">Số lượng</th>
+                            <th>Tổng</th>
+                            <th width="80"></th>
+                        </tr>
+                    </thead>
 
-    // ── Cập nhật số lượng ─────────────────────────────────────────────────
-    public function update(): void {
-        $productId = (int)($_POST['product_id'] ?? 0);
-        $qty       = (int)($_POST['quantity']   ?? 0);
-        $this->cartModel->updateQty($productId, $qty);
+                    <tbody>
 
-        $this->jsonResponse([
-            'success'    => true,
-            'cartCount'  => $this->cartModel->getTotalQty(),
-            'totalPrice' => $this->cartModel->getTotalPrice(),
-            'itemTotal'  => isset($this->cartModel->getCart()[$productId])
-                            ? $this->cartModel->getCart()[$productId]['price']
-                              * $this->cartModel->getCart()[$productId]['quantity']
-                            : 0,
-        ]);
-    }
+                    <?php foreach ($cartItems as $id => $item): ?>
 
-    // ── Xoá một item ──────────────────────────────────────────────────────
-    public function remove(): void {
-        $productId = (int)($_POST['product_id'] ?? 0);
-        $this->cartModel->removeItem($productId);
+                        <tr>
 
-        $this->jsonResponse([
-            'success'    => true,
-            'cartCount'  => $this->cartModel->getTotalQty(),
-            'totalPrice' => $this->cartModel->getTotalPrice(),
-        ]);
-    }
+                            <!-- Hình + tên -->
+                            <td>
+                                <div class="d-flex align-items-center">
 
-    // ── Trang checkout ────────────────────────────────────────────────────
-    public function checkout(): void {
-        $cartItems  = $this->cartModel->getCart();
-        $totalPrice = $this->cartModel->getTotalPrice();
-        if (empty($cartItems)) {
-            header('Location: /Cart');
-            return;
-        }
-        include 'app/views/cart/checkout.php';
-    }
+                                    <?php if (!empty($item['image'])): ?>
+                                        <img src="/<?php echo $item['image']; ?>"
+                                             width="70"
+                                             height="70"
+                                             style="object-fit:cover;border-radius:10px;">
+                                    <?php endif; ?>
 
-    // ── Đặt hàng ──────────────────────────────────────────────────────────
-    public function placeOrder(): void {
-        $name    = trim($_POST['customer_name']    ?? '');
-        $phone   = trim($_POST['customer_phone']   ?? '');
-        $address = trim($_POST['customer_address'] ?? '');
-        $note    = trim($_POST['note']             ?? '');
+                                    <div class="ml-3">
+                                        <div class="font-weight-bold">
+                                            <?php echo htmlspecialchars($item['name']); ?>
+                                        </div>
+                                    </div>
 
-        if (!$name || !$phone || !$address) {
-            $_SESSION['checkout_error'] = 'Vui lòng điền đầy đủ thông tin.';
-            header('Location: /Cart/checkout');
-            return;
-        }
+                                </div>
+                            </td>
 
-        $orderId = $this->cartModel->placeOrder($name, $phone, $address, $note);
-        if ($orderId) {
-            header("Location: /Cart/success?order_id={$orderId}");
-        } else {
-            $_SESSION['checkout_error'] = 'Giỏ hàng trống, không thể đặt hàng.';
-            header('Location: /Cart/checkout');
-        }
-    }
+                            <!-- Giá -->
+                            <td>
+                                <?php echo number_format($item['price'], 0, ',', '.'); ?> ₫
+                            </td>
 
-    // ── Trang đặt hàng thành công ─────────────────────────────────────────
-    public function success(): void {
-        $orderId = (int)($_GET['order_id'] ?? 0);
-        $order   = $this->cartModel->getOrderById($orderId);
-        $items   = $this->cartModel->getOrderItems($orderId);
-        include 'app/views/cart/success.php';
-    }
+                            <!-- Số lượng -->
+                            <td>
 
-    // ── Danh sách đơn hàng (admin) ────────────────────────────────────────
-    public function orders(): void {
-        $orders = $this->cartModel->getAllOrders();
-        include 'app/views/cart/orders.php';
-    }
+                                <form action="/Cart/update" method="POST">
 
-    // ── Chi tiết đơn hàng (admin) ─────────────────────────────────────────
-    public function orderDetail(int $id): void {
-        $order = $this->cartModel->getOrderById($id);
-        $items = $this->cartModel->getOrderItems($id);
-        if (!$order) die('Không tìm thấy đơn hàng.');
-        include 'app/views/cart/order_detail.php';
-    }
+                                    <input type="hidden"
+                                           name="product_id"
+                                           value="<?php echo $id; ?>">
 
-    // ── Cập nhật trạng thái đơn (admin) ──────────────────────────────────
-    public function updateStatus(): void {
-        $id     = (int)($_POST['order_id'] ?? 0);
-        $status = $_POST['status'] ?? 'pending';
-        $this->cartModel->updateOrderStatus($id, $status);
-        header("Location: /Cart/orderDetail/{$id}");
-    }
+                                    <div class="d-flex">
 
-    // ── Helper JSON ───────────────────────────────────────────────────────
-    private function jsonResponse(array $data): void {
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
-    }
-}
-?>
+                                        <input type="number"
+                                               name="quantity"
+                                               value="<?php echo $item['quantity']; ?>"
+                                               min="1"
+                                               class="form-control mr-2">
+
+                                        <button class="btn btn-primary">
+                                            <i class="fas fa-sync"></i>
+                                        </button>
+
+                                    </div>
+
+                                </form>
+
+                            </td>
+
+                            <!-- Tổng -->
+                            <td class="font-weight-bold text-primary">
+                                <?php
+                                echo number_format(
+                                    $item['price'] * $item['quantity'],
+                                    0,
+                                    ',',
+                                    '.'
+                                );
+                                ?> ₫
+                            </td>
+
+                            <!-- Xoá -->
+                            <td>
+
+                                <form action="/Cart/remove" method="POST">
+
+                                    <input type="hidden"
+                                           name="product_id"
+                                           value="<?php echo $id; ?>">
+
+                                    <button class="btn btn-danger btn-sm"
+                                            onclick="return confirm('Xóa sản phẩm?')">
+
+                                        <i class="fas fa-trash"></i>
+
+                                    </button>
+
+                                </form>
+
+                            </td>
+
+                        </tr>
+
+                    <?php endforeach; ?>
+
+                    </tbody>
+                </table>
+
+            </div>
+        </div>
+
+        <!-- Tổng tiền -->
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-body d-flex justify-content-between align-items-center">
+
+                <h4 class="mb-0">
+                    Tổng tiền:
+                </h4>
+
+                <h3 class="text-primary mb-0 font-weight-bold">
+                    <?php echo number_format($totalPrice, 0, ',', '.'); ?> ₫
+                </h3>
+
+            </div>
+        </div>
+
+        <!-- Nút thanh toán -->
+        <div class="text-right mt-4">
+
+            <a href="/Cart/checkout" class="btn btn-lg btn-success">
+                <i class="fas fa-credit-card"></i>
+                Thanh toán
+            </a>
+
+        </div>
+
+    <?php endif; ?>
+
+</div>
+
+<?php include 'app/views/shares/footer.php'; ?>
