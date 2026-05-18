@@ -36,10 +36,17 @@
 
         /* ── Navbar ────────────────────────────────────────────────────── */
         .main-navbar {
-            background: var(--dark);
-            padding: .6rem 1.5rem;
-            box-shadow: 0 2px 12px rgba(0,0,0,.25);
-        }
+    background: rgba(30, 27, 75, 0.92);
+    padding: .6rem 1.5rem;
+
+    position: sticky;
+    top: 0;
+    z-index: 9999;
+
+    backdrop-filter: blur(12px);
+
+    box-shadow: 0 2px 12px rgba(0,0,0,.25);
+}
 
         .main-navbar .navbar-brand {
             font-size: 1.4rem;

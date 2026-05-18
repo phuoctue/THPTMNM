@@ -505,17 +505,19 @@ $slideGradients = [
     <div class="product-grid">
         <?php foreach ($products as $product): ?>
         <div class="product-card">
-            <?php if (!empty($product->image) && file_exists($product->image)): ?>
-                <div class="product-card__img-wrap">
-                    <img src="/<?php echo htmlspecialchars($product->image); ?>"
-                         alt="<?php echo htmlspecialchars($product->name); ?>"
-                         class="product-card__img">
-                </div>
-            <?php else: ?>
-                <div class="product-card__img-placeholder">
-                    <i class="fas fa-image"></i>
-                </div>
-            <?php endif; ?>
+        <?php if (!empty($product->image) && file_exists($product->image)): ?>
+    <a href="/Product/show/<?php echo $product->id; ?>" 
+       class="product-card__img-wrap">
+        <img src="/<?php echo htmlspecialchars($product->image); ?>"
+             alt="<?php echo htmlspecialchars($product->name); ?>"
+             class="product-card__img">
+    </a>
+<?php else: ?>
+    <a href="/Product/show/<?php echo $product->id; ?>" 
+       class="product-card__img-placeholder">
+        <i class="fas fa-image"></i>
+    </a>
+<?php endif; ?>
 
             <div class="product-card__body">
                 <div class="product-card__category">
