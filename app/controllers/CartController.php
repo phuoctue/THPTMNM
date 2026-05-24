@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once('app/config/database.php');
 require_once('app/models/CartModel.php');
 require_once('app/models/ProductModel.php');
@@ -16,21 +16,32 @@ class CartController {
         $this->productModel = new ProductModel($this->db);
     }
 
-    // ── Xem giỏ hàng ──────────────────────────────────────────────────────
     public function index(): void {
         $cartItems  = $this->cartModel->getCart();
         $totalPrice = $this->cartModel->getTotalPrice();
         include 'app/views/cart/index.php';
     }
 
-    // ── Thêm vào giỏ ──────────────────────────────────────────────────────
     public function add(): void {
         $productId = (int)($_POST['product_id'] ?? 0);
         $qty       = max(1, (int)($_POST['quantity'] ?? 1));
+        $isAjax    = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest'
+                     || (($_POST['_ajax'] ?? '') === '1');
 
         $product = $this->productModel->getProductById($productId);
         if (!$product) {
-            $this->jsonResponse(['success' => false, 'message' => 'Sản phẩm không tồn tại']);
+            if ($isAjax) {
+                $this->jsonResponse(['success' => false, 'message' => 'Sản phẩm không tồn tại']);
+                return;
+            }
+
+            $_SESSION['cart_error'] = 'Sản phẩm không tồn tại hoặc đã bị xóa.';
+            $redirectTo = $_POST['redirect_to'] ?? ($_SERVER['HTTP_REFERER'] ?? '/Product');
+            if (!is_string($redirectTo) || $redirectTo === '' || strpos($redirectTo, '/') !== 0 || strpos($redirectTo, '//') === 0) {
+                $redirectTo = '/Product';
+            }
+            header('Location: ' . $redirectTo);
+            exit;
             return;
         }
 
@@ -42,43 +53,67 @@ class CartController {
             $qty
         );
 
-        $this->jsonResponse([
-            'success'   => true,
-            'message'   => 'Đã thêm vào giỏ hàng!',
-            'cartCount' => $this->cartModel->getTotalQty(),
-        ]);
+        if ($isAjax) {
+            $this->jsonResponse([
+                'success'   => true,
+                'message'   => 'Đã thêm vào giỏ hàng!',
+                'cartCount' => $this->cartModel->getTotalQty(),
+            ]);
+            return;
+        }
+
+        $redirectTo = $_POST['redirect_to'] ?? ($_SERVER['HTTP_REFERER'] ?? '/Product');
+        if (!is_string($redirectTo) || $redirectTo === '' || strpos($redirectTo, '/') !== 0 || strpos($redirectTo, '//') === 0) {
+            $redirectTo = '/Product';
+        }
+
+        header('Location: ' . $redirectTo);
+        exit;
     }
 
-    // ── Cập nhật số lượng ─────────────────────────────────────────────────
     public function update(): void {
         $productId = (int)($_POST['product_id'] ?? 0);
         $qty       = (int)($_POST['quantity']   ?? 0);
         $this->cartModel->updateQty($productId, $qty);
 
-        $this->jsonResponse([
-            'success'    => true,
-            'cartCount'  => $this->cartModel->getTotalQty(),
-            'totalPrice' => $this->cartModel->getTotalPrice(),
-            'itemTotal'  => isset($this->cartModel->getCart()[$productId])
-                            ? $this->cartModel->getCart()[$productId]['price']
-                              * $this->cartModel->getCart()[$productId]['quantity']
-                            : 0,
-        ]);
+        $isAjax = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest'
+                  || (($_POST['_ajax'] ?? '') === '1');
+        if ($isAjax) {
+            $cart = $this->cartModel->getCart();
+            $itemTotal = isset($cart[$productId]) ? ((int)$cart[$productId]['price'] * (int)$cart[$productId]['quantity']) : 0;
+            $this->jsonResponse([
+                'success'    => true,
+                'cartCount'  => $this->cartModel->getTotalQty(),
+                'totalPrice' => $this->cartModel->getTotalPrice(),
+                'itemTotal'  => $itemTotal,
+                'removed'    => !isset($cart[$productId]),
+            ]);
+            return;
+        }
+
+        header('Location: /Cart');
+        exit;
     }
 
-    // ── Xoá một item ──────────────────────────────────────────────────────
     public function remove(): void {
         $productId = (int)($_POST['product_id'] ?? 0);
         $this->cartModel->removeItem($productId);
 
-        $this->jsonResponse([
-            'success'    => true,
-            'cartCount'  => $this->cartModel->getTotalQty(),
-            'totalPrice' => $this->cartModel->getTotalPrice(),
-        ]);
+        $isAjax = strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest'
+                  || (($_POST['_ajax'] ?? '') === '1');
+        if ($isAjax) {
+            $this->jsonResponse([
+                'success'    => true,
+                'cartCount'  => $this->cartModel->getTotalQty(),
+                'totalPrice' => $this->cartModel->getTotalPrice(),
+            ]);
+            return;
+        }
+
+        header('Location: /Cart');
+        exit;
     }
 
-    // ── Trang checkout ────────────────────────────────────────────────────
     public function checkout(): void {
         $cartItems  = $this->cartModel->getCart();
         $totalPrice = $this->cartModel->getTotalPrice();
@@ -89,20 +124,31 @@ class CartController {
         include 'app/views/cart/checkout.php';
     }
 
-    // ── Đặt hàng ──────────────────────────────────────────────────────────
     public function placeOrder(): void {
-        $name    = trim($_POST['customer_name']    ?? '');
-        $phone   = trim($_POST['customer_phone']   ?? '');
-        $address = trim($_POST['customer_address'] ?? '');
-        $note    = trim($_POST['note']             ?? '');
+        $name          = trim($_POST['customer_name']    ?? '');
+        $phone         = trim($_POST['customer_phone']   ?? '');
+        $email         = trim($_POST['customer_email']   ?? '');
+        $address       = trim($_POST['customer_address'] ?? '');
+        $note          = trim($_POST['note']             ?? '');
+        $paymentMethod = $_POST['payment_method']        ?? 'cod';
 
         if (!$name || !$phone || !$address) {
-            $_SESSION['checkout_error'] = 'Vui lòng điền đầy đủ thông tin.';
+            $_SESSION['checkout_error'] = 'Vui lòng điền đầy đủ thông tin bắt buộc.';
             header('Location: /Cart/checkout');
             return;
         }
 
-        $orderId = $this->cartModel->placeOrder($name, $phone, $address, $note);
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['checkout_error'] = 'Email không hợp lệ.';
+            header('Location: /Cart/checkout');
+            return;
+        }
+
+        if (!in_array($paymentMethod, ['cod', 'banking'], true)) {
+            $paymentMethod = 'cod';
+        }
+
+        $orderId = $this->cartModel->placeOrder($name, $phone, $email, $address, $note, $paymentMethod);
         if ($orderId) {
             header("Location: /Cart/success?order_id={$orderId}");
         } else {
@@ -111,7 +157,6 @@ class CartController {
         }
     }
 
-    // ── Trang đặt hàng thành công ─────────────────────────────────────────
     public function success(): void {
         $orderId = (int)($_GET['order_id'] ?? 0);
         $order   = $this->cartModel->getOrderById($orderId);
@@ -119,13 +164,11 @@ class CartController {
         include 'app/views/cart/success.php';
     }
 
-    // ── Danh sách đơn hàng (admin) ────────────────────────────────────────
     public function orders(): void {
         $orders = $this->cartModel->getAllOrders();
         include 'app/views/cart/orders.php';
     }
 
-    // ── Chi tiết đơn hàng (admin) ─────────────────────────────────────────
     public function orderDetail(int $id): void {
         $order = $this->cartModel->getOrderById($id);
         $items = $this->cartModel->getOrderItems($id);
@@ -133,7 +176,6 @@ class CartController {
         include 'app/views/cart/order_detail.php';
     }
 
-    // ── Cập nhật trạng thái đơn (admin) ──────────────────────────────────
     public function updateStatus(): void {
         $id     = (int)($_POST['order_id'] ?? 0);
         $status = $_POST['status'] ?? 'pending';
@@ -141,7 +183,6 @@ class CartController {
         header("Location: /Cart/orderDetail/{$id}");
     }
 
-    // ── Helper JSON ───────────────────────────────────────────────────────
     private function jsonResponse(array $data): void {
         header('Content-Type: application/json');
         echo json_encode($data);

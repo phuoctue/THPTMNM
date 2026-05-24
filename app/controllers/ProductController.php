@@ -50,9 +50,25 @@ class ProductController {
         $price       = $_POST['price']       ?? 0;
         $category_id = $_POST['category_id'] ?? 0;
 
+        if ($name === '' || (float)$price < 0) {
+            if ($this->isAjax()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Dữ liệu sản phẩm không hợp lệ.']);
+                return;
+            }
+            header('Location: /Product/add');
+            return;
+        }
+
         $image = $this->handleImageUpload('');
 
-        $this->productModel->addProduct($name, $description, $price, $category_id, $image);
+        $ok = $this->productModel->addProduct($name, $description, $price, $category_id, $image);
+        if ($this->isAjax()) {
+            $this->jsonResponse([
+                'success' => (bool)$ok,
+                'message' => $ok ? 'Đã thêm sản phẩm thành công.' : 'Không thể thêm sản phẩm.',
+            ]);
+            return;
+        }
         header('Location: /Product');
     }
 
@@ -70,14 +86,37 @@ class ProductController {
         $price       = $_POST['price']       ?? 0;
         $category_id = $_POST['category_id'] ?? 0;
 
+        if ((int)$id <= 0 || $name === '' || (float)$price < 0) {
+            if ($this->isAjax()) {
+                $this->jsonResponse(['success' => false, 'message' => 'Dữ liệu cập nhật không hợp lệ.']);
+                return;
+            }
+            header('Location: /Product');
+            return;
+        }
+
         $image = $this->handleImageUpload($_POST['existing_image'] ?? '');
 
-        $this->productModel->updateProduct($id, $name, $description, $price, $category_id, $image);
+        $ok = $this->productModel->updateProduct($id, $name, $description, $price, $category_id, $image);
+        if ($this->isAjax()) {
+            $this->jsonResponse([
+                'success' => (bool)$ok,
+                'message' => $ok ? 'Đã cập nhật sản phẩm.' : 'Không thể cập nhật sản phẩm.',
+            ]);
+            return;
+        }
         header('Location: /Product');
     }
 
     public function delete($id) {
-        $this->productModel->deleteProduct($id);
+        $ok = $this->productModel->deleteProduct($id);
+        if ($this->isAjax()) {
+            $this->jsonResponse([
+                'success' => (bool)$ok,
+                'message' => $ok ? 'Đã xóa sản phẩm.' : 'Không thể xóa sản phẩm.',
+            ]);
+            return;
+        }
         header('Location: /Product');
     }
 
@@ -107,6 +146,18 @@ class ProductController {
         move_uploaded_file($file['tmp_name'], $target);
 
         return $target;
+    }
+
+    private function isAjax(): bool {
+        return strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest'
+            || (($_POST['_ajax'] ?? '') === '1')
+            || (($_GET['_ajax'] ?? '') === '1');
+    }
+
+    private function jsonResponse(array $data): void {
+        header('Content-Type: application/json');
+        echo json_encode($data);
+        exit;
     }
 }
 ?>

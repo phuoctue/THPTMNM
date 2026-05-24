@@ -1,4 +1,4 @@
-<?php include 'app/views/shares/header.php'; ?>
+﻿<?php include 'app/views/shares/header.php'; ?>
 
 <style>
 /* ── Page title ──────────────────────────────────────────────────────── */
@@ -530,17 +530,24 @@ $slideGradients = [
             </div>
 
             <div class="product-card__footer">
+                <form action="/Cart/add" method="POST" class="mb-0" style="flex:1;">
+                    <input type="hidden" name="product_id" value="<?php echo (int)$product->id; ?>">
+                    <input type="hidden" name="quantity" value="1">
+                    <button type="submit" class="btn btn-success btn-sm w-100" title="Thêm vào giỏ hàng">
+                        <i class="fas fa-cart-plus"></i>
+                    </button>
+                </form>
                 <a href="/Product/show/<?php echo $product->id; ?>"
-                   class="btn btn-outline-primary btn-sm">
+                   class="btn btn-outline-primary btn-sm" title="Xem chi tiết">
                     <i class="fas fa-eye"></i>
                 </a>
                 <a href="/Product/edit/<?php echo $product->id; ?>"
-                   class="btn btn-warning btn-sm">
-                    <i class="fas fa-edit"></i> Sửa
+                   class="btn btn-warning btn-sm" title="Sửa sản phẩm">
+                    <i class="fas fa-edit"></i>
                 </a>
                 <a href="/Product/delete/<?php echo $product->id; ?>"
                    class="btn btn-danger btn-sm"
-                   onclick="return confirm('Xóa sản phẩm này?')">
+                   title="Xóa sản phẩm">
                     <i class="fas fa-trash"></i>
                 </a>
             </div>
@@ -579,3 +586,6 @@ $slideGradients = [
 <?php endif; ?>
 
 <?php include 'app/views/shares/footer.php'; ?>
+
+
+

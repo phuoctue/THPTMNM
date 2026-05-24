@@ -1,4 +1,4 @@
-<?php include 'app/views/shares/header.php'; ?>
+﻿<?php include 'app/views/shares/header.php'; ?>
 
 <style>
 .cat-table-card {
@@ -86,7 +86,7 @@
                         </a>
                         <a href="/Category/delete/<?php echo $cat->id; ?>"
                            class="btn btn-danger btn-sm"
-                           onclick="return confirm('Xóa danh mục này?')">
+                          >
                             <i class="fas fa-trash"></i>
                         </a>
                     </td>
@@ -98,3 +98,4 @@
 <?php endif; ?>
 
 <?php include 'app/views/shares/footer.php'; ?>
+
