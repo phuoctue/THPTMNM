@@ -38,7 +38,7 @@
     </div>
 </footer>
 
-<div aria-live="polite" aria-atomic="true" style="position: fixed; top: 16px; right: 16px; z-index: 1080;">
+<div id="cartToastWrap" aria-live="polite" aria-atomic="true" style="position: fixed; top: 84px; right: 16px; z-index: 11000;">
     <div id="cartToast" class="toast" role="alert" data-delay="1800" style="min-width: 280px;">
         <div id="cartToastHeader" class="toast-header bg-success text-white">
             <i class="fas fa-check-circle mr-2"></i>
@@ -57,9 +57,41 @@
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 <script>
 (function () {
+    function setupAdminSidebar() {
+        var toggleBtn = document.getElementById('manageToggleBtn');
+        var backdrop = document.getElementById('adminSidebarBackdrop');
+        var sidebar = document.getElementById('adminSidebar');
+        if (!toggleBtn || !backdrop || !sidebar) return;
+
+        function closeSidebar() {
+            document.body.classList.remove('admin-mode');
+        }
+
+        toggleBtn.addEventListener('click', function () {
+            document.body.classList.toggle('admin-mode');
+        });
+        backdrop.addEventListener('click', closeSidebar);
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeSidebar();
+        });
+    }
+
+    function syncToastOffset() {
+        var toastWrap = document.getElementById('cartToastWrap');
+        var nav = document.querySelector('.main-navbar');
+        if (!toastWrap || !nav) return;
+        var navHeight = nav.getBoundingClientRect().height || 0;
+        toastWrap.style.top = (Math.ceil(navHeight) + 12) + 'px';
+    }
+
     function updateCartBadge(count) {
-        var badge = document.querySelector('a[href="/Cart"] .badge');
+        var badge = document.getElementById('cartQtyBadge') || document.querySelector('a[href="/Cart"] .badge');
         if (badge && typeof count !== 'undefined') badge.textContent = count;
+    }
+
+    function getCartBadgeCount() {
+        var badge = document.getElementById('cartQtyBadge') || document.querySelector('a[href="/Cart"] .badge');
+        return badge ? Number(badge.textContent || 0) : 0;
     }
 
     function formatVnd(value) {
@@ -82,11 +114,21 @@
     }
 
     function parseJsonResponse(response) {
-        var contentType = response.headers.get('content-type') || '';
-        if (!response.ok || contentType.indexOf('application/json') === -1) {
-            throw new Error('Non-JSON response');
+        if (!response.ok) {
+            throw new Error('Bad response');
         }
-        return response.json();
+        return response.text().then(function (text) {
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                var start = text.indexOf('{');
+                var end = text.lastIndexOf('}');
+                if (start !== -1 && end > start) {
+                    return JSON.parse(text.slice(start, end + 1));
+                }
+                throw new Error('Non-JSON response');
+            }
+        });
     }
 
     function renderEmptyCartState() {
@@ -111,6 +153,12 @@
         container.appendChild(empty);
     }
 
+    function setFormBusy(form, isBusy) {
+        form.dataset.submitting = isBusy ? '1' : '0';
+        var submitButton = form.querySelector('[type="submit"]');
+        if (submitButton) submitButton.disabled = isBusy;
+    }
+
     document.addEventListener('submit', function (e) {
         var form = e.target;
         if (!(form instanceof HTMLFormElement)) return;
@@ -124,8 +172,15 @@
         if (!/\/Cart\/(add|update|remove)\/?$/i.test(actionPath)) return;
 
         e.preventDefault();
+        if (form.dataset.submitting === '1') return;
+        setFormBusy(form, true);
         var formData = new FormData(form);
         formData.set('_ajax', '1');
+        var optimisticCount = null;
+        if (/\/Cart\/add\/?$/i.test(actionPath)) {
+            optimisticCount = getCartBadgeCount();
+            updateCartBadge(optimisticCount + Number(formData.get('quantity') || 1));
+        }
 
         fetch(actionRaw, {
             method: 'POST',
@@ -135,18 +190,24 @@
         .then(parseJsonResponse)
         .then(function (data) {
             if (!data || !data.success) {
+                if (optimisticCount !== null) updateCartBadge(optimisticCount);
                 showCartToast((data && data.message) ? data.message : 'Thao tác thất bại.', 'error');
+                setFormBusy(form, false);
                 return;
             }
             updateCartBadge(data.cartCount);
 
             if (/\/Cart\/add\/?$/i.test(actionPath)) {
                 showCartToast(data.message || 'Đã thêm vào giỏ hàng!');
+                setFormBusy(form, false);
                 return;
             }
 
             var row = form.closest('tr');
-            if (!row) return;
+            if (!row) {
+                setFormBusy(form, false);
+                return;
+            }
 
             if (/\/Cart\/remove\/?$/i.test(actionPath) || data.removed) {
                 row.remove();
@@ -161,10 +222,42 @@
                 totalBox.textContent = formatVnd(data.totalPrice);
             }
             if (cartRows.length === 0) renderEmptyCartState();
+            setFormBusy(form, false);
         })
         .catch(function () {
-            form.submit();
+            setFormBusy(form, false);
+            if (!/\/Cart\/add\/?$/i.test(actionPath)) {
+                form.submit();
+                return;
+            }
+            showCartToast('Khong the xu ly thao tac. Vui long thu lai.', 'error');
         });
+    });
+
+    document.addEventListener('change', function (e) {
+        var input = e.target;
+        if (!(input instanceof HTMLInputElement)) return;
+        if (input.name !== 'quantity') return;
+
+        var form = input.closest('form');
+        if (!(form instanceof HTMLFormElement)) return;
+
+        var actionRaw = form.getAttribute('action') || '';
+        var actionPath = '';
+        try {
+            actionPath = new URL(actionRaw, window.location.origin).pathname;
+        } catch (err) {
+            actionPath = actionRaw;
+        }
+        if (!/\/Cart\/update\/?$/i.test(actionPath)) return;
+
+        var qty = parseInt(input.value || '1', 10);
+        if (!Number.isFinite(qty) || qty < 1) {
+            qty = 1;
+            input.value = '1';
+        }
+
+        form.requestSubmit();
     });
 
     document.addEventListener('submit', function (e) {
@@ -237,6 +330,10 @@
             window.location.href = href;
         });
     });
+
+    setupAdminSidebar();
+    syncToastOffset();
+    window.addEventListener('resize', syncToastOffset);
 })();
 </script>
 </body>

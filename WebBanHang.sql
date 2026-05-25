@@ -1,8 +1,6 @@
 -- --------------------------------------------------------
--- Host:                         127.0.0.1
--- Server version:               8.0.30 - MySQL Community Server - GPL
--- Server OS:                    Win64
--- HeidiSQL Version:             12.1.0.6537
+-- Hosting deploy SQL for my_store
+-- Safe to re-import on shared hosting/phpMyAdmin
 -- --------------------------------------------------------
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
@@ -14,13 +12,18 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
+-- NOTE:
+-- 1) Do NOT include CREATE DATABASE / USE for shared hosting.
+-- 2) Select your target database in phpMyAdmin before importing.
 
--- Dumping database structure for my_store
-CREATE DATABASE IF NOT EXISTS `my_store` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
-USE `my_store`;
+-- Reset old tables (for clean re-import)
+DROP TABLE IF EXISTS `order_items`;
+DROP TABLE IF EXISTS `orders`;
+DROP TABLE IF EXISTS `product`;
+DROP TABLE IF EXISTS `category`;
 
--- Dumping structure for table my_store.category
-CREATE TABLE IF NOT EXISTS `category` (
+-- Table: category
+CREATE TABLE `category` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(150) NOT NULL,
   `description` text,
@@ -28,15 +31,22 @@ CREATE TABLE IF NOT EXISTS `category` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table my_store.category: ~4 rows (approximately)
-INSERT INTO `category` (`id`, `name`, `description`, `created_at`) VALUES
-	(1, 'Điện thoại', 'Điện thoại di động các loại', '2026-05-18 03:23:53'),
-	(2, 'Laptop', 'Máy tính xách tay', '2026-05-18 03:23:53'),
-	(3, 'Phụ kiện', 'Tai nghe, sạc, cáp...', '2026-05-18 03:23:53'),
-	(4, 'Máy tính bảng', 'Tablet các loại', '2026-05-18 03:23:53');
+-- Table: product
+CREATE TABLE `product` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `description` text,
+  `price` decimal(15,0) NOT NULL DEFAULT '0',
+  `category_id` int unsigned DEFAULT NULL,
+  `image` varchar(500) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `fk_product_category` (`category_id`),
+  CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `category` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping structure for table my_store.orders
-CREATE TABLE IF NOT EXISTS `orders` (
+-- Table: orders
+CREATE TABLE `orders` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `customer_name` varchar(120) NOT NULL,
   `customer_phone` varchar(20) NOT NULL,
@@ -51,12 +61,8 @@ CREATE TABLE IF NOT EXISTS `orders` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table my_store.orders: ~1 rows (approximately)
-INSERT INTO `orders` (`id`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `note`, `total_price`, `payment_method`, `payment_status`, `status`, `created_at`) VALUES
-	(1, 'Nguyễn Văn A', '0909123456', 'vana@gmail.com', 'TP.HCM', 'Giao giờ hành chính', 49980000, 'cod', 'unpaid', 'pending', '2026-05-18 03:23:53');
-
--- Dumping structure for table my_store.order_items
-CREATE TABLE IF NOT EXISTS `order_items` (
+-- Table: order_items
+CREATE TABLE `order_items` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `order_id` int unsigned NOT NULL,
   `product_id` int unsigned NOT NULL,
@@ -72,34 +78,31 @@ CREATE TABLE IF NOT EXISTS `order_items` (
   CONSTRAINT `fk_order_items_product` FOREIGN KEY (`product_id`) REFERENCES `product` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Dumping data for table my_store.order_items: ~2 rows (approximately)
-INSERT INTO `order_items` (`id`, `order_id`, `product_id`, `name`, `price`, `quantity`, `image`, `created_at`) VALUES
-	(1, 1, 1, 'iPhone 15 Pro', 29990000, 1, 'uploads/iphone15pro.jpg', '2026-05-18 03:23:53'),
-	(2, 1, 2, 'Samsung Galaxy S24', 19990000, 1, 'uploads/s24.jpg', '2026-05-18 03:23:53');
+-- Seed: category
+INSERT INTO `category` (`id`, `name`, `description`, `created_at`) VALUES
+  (1, 'Điện thoại', 'Điện thoại di động các loại', '2026-05-18 03:23:53'),
+  (2, 'Laptop', 'Máy tính xách tay', '2026-05-18 03:23:53'),
+  (3, 'Phụ kiện', 'Tai nghe, sạc, cáp...', '2026-05-18 03:23:53'),
+  (4, 'Máy tính bảng', 'Tablet các loại', '2026-05-18 03:23:53');
 
--- Dumping structure for table my_store.product
-CREATE TABLE IF NOT EXISTS `product` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `description` text,
-  `price` decimal(15,0) NOT NULL DEFAULT '0',
-  `category_id` int unsigned DEFAULT NULL,
-  `image` varchar(500) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `fk_product_category` (`category_id`),
-  CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `category` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- Dumping data for table my_store.product: ~7 rows (approximately)
+-- Seed: product
 INSERT INTO `product` (`id`, `name`, `description`, `price`, `category_id`, `image`, `created_at`) VALUES
-	(1, 'iPhone 15 Pro', 'Chip A17 Pro, khung titanium', 29990000, 1, 'uploads/img_6a0a870e7d7cc5.26004569.jpg', '2026-05-18 03:23:53'),
-	(2, 'Samsung Galaxy S24', 'Màn AMOLED 120Hz, AI Camera', 19990000, 1, 'uploads/img_6a0a86be8b3c84.27898318.jpg', '2026-05-18 03:23:53'),
-	(3, 'MacBook Air M3', 'Apple Silicon M3, pin 18 giờ', 32990000, 2, 'uploads/img_6a0a868eb9f089.48289987.jpg', '2026-05-18 03:23:53'),
-	(4, 'Tai nghe Sony WH-1000XM5', 'Chống ồn ANC cao cấp', 8490000, 3, 'uploads/img_6a0a8674df0387.36616151.jpg', '2026-05-18 03:23:53'),
-	(5, 'OPPO Find X7', 'Sạc nhanh 100W, camera chân dung đẹp', 18990000, 1, 'uploads/img_6a0a888639ede6.37564493.webp', '2026-05-18 03:33:26'),
-	(6, 'Vivo X100 Pro', 'Chip Dimensity cao cấp, chụp đêm tốt', 21990000, 1, 'uploads/img_6a0a88ec5712a6.98272298.webp', '2026-05-18 03:35:08'),
-	(7, 'iPad Air 6', 'Chip Apple M2 mạnh mẽ', 19990000, 4, 'uploads/img_6a0a8b005f1151.20332591.webp', '2026-05-18 03:44:00');
+  (1, 'iPhone 15 Pro', 'Chip A17 Pro, khung titanium', 29990000, 1, 'uploads/img_6a0a870e7d7cc5.26004569.jpg', '2026-05-18 03:23:53'),
+  (2, 'Samsung Galaxy S24', 'Màn AMOLED 120Hz, AI Camera', 19990000, 1, 'uploads/img_6a0a86be8b3c84.27898318.jpg', '2026-05-18 03:23:53'),
+  (3, 'MacBook Air M3', 'Apple Silicon M3, pin 18 giờ', 32990000, 2, 'uploads/img_6a0a868eb9f089.48289987.jpg', '2026-05-18 03:23:53'),
+  (4, 'Tai nghe Sony WH-1000XM5', 'Chống ồn ANC cao cấp', 8490000, 3, 'uploads/img_6a0a8674df0387.36616151.jpg', '2026-05-18 03:23:53'),
+  (5, 'OPPO Find X7', 'Sạc nhanh 100W, camera chân dung đẹp', 18990000, 1, 'uploads/img_6a0a888639ede6.37564493.webp', '2026-05-18 03:33:26'),
+  (6, 'Vivo X100 Pro', 'Chip Dimensity cao cấp, chụp đêm tốt', 21990000, 1, 'uploads/img_6a0a88ec5712a6.98272298.webp', '2026-05-18 03:35:08'),
+  (7, 'iPad Air 6', 'Chip Apple M2 mạnh mẽ', 19990000, 4, 'uploads/img_6a0a8b005f1151.20332591.webp', '2026-05-18 03:44:00');
+
+-- Seed: orders
+INSERT INTO `orders` (`id`, `customer_name`, `customer_phone`, `customer_email`, `customer_address`, `note`, `total_price`, `payment_method`, `payment_status`, `status`, `created_at`) VALUES
+  (1, 'Nguyễn Văn A', '0909123456', 'vana@gmail.com', 'TP.HCM', 'Giao giờ hành chính', 49980000, 'cod', 'unpaid', 'pending', '2026-05-18 03:23:53');
+
+-- Seed: order_items
+INSERT INTO `order_items` (`id`, `order_id`, `product_id`, `name`, `price`, `quantity`, `image`, `created_at`) VALUES
+  (1, 1, 1, 'iPhone 15 Pro', 29990000, 1, 'uploads/iphone15pro.jpg', '2026-05-18 03:23:53'),
+  (2, 1, 2, 'Samsung Galaxy S24', 19990000, 1, 'uploads/s24.jpg', '2026-05-18 03:23:53');
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

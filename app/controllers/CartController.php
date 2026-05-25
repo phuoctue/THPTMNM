@@ -117,6 +117,7 @@ class CartController {
     public function checkout(): void {
         $cartItems  = $this->cartModel->getCart();
         $totalPrice = $this->cartModel->getTotalPrice();
+        $nextOrderId = $this->cartModel->getNextOrderId();
         if (empty($cartItems)) {
             header('Location: /Cart');
             return;

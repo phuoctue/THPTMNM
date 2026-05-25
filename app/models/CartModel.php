@@ -56,6 +56,11 @@ class CartModel {
         $_SESSION['cart'] = [];
     }
 
+    public function getNextOrderId(): int {
+        $stmt = $this->conn->query("SELECT COALESCE(MAX(id), 0) + 1 FROM orders");
+        return (int)$stmt->fetchColumn();
+    }
+
     public function placeOrder(
         string $name,
         string $phone,

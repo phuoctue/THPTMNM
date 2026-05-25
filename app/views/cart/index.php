@@ -85,9 +85,6 @@
                                                min="1"
                                                class="form-control mr-2">
 
-                                        <button class="btn btn-primary">
-                                            <i class="fas fa-sync"></i>
-                                        </button>
 
                                     </div>
 

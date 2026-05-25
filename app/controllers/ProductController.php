@@ -29,6 +29,7 @@ class ProductController {
         }
 
         $products = $this->productModel->getProducts($search, $perPage, $offset);
+        $isManagement = true;
 
         include 'app/views/product/list.php';
     }

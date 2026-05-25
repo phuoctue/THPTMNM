@@ -1,6 +1,7 @@
 <?php
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
+if (session_status() === PHP_SESSION_NONE) session_start();
 
 $url = $_GET['url'] ?? '';
 $url = rtrim($url, '/');
@@ -10,7 +11,7 @@ $url = explode('/', $url);
 // Mặc định vào Product nếu không có controller
 $controllerName = (isset($url[0]) && $url[0] != '')
     ? ucfirst($url[0]) . 'Controller'
-    : 'ProductController';
+    : 'HomeController';
 
 // Mặc định action là index
 $action = (isset($url[1]) && $url[1] != '') ? $url[1] : 'index';

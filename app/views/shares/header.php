@@ -1,78 +1,124 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý cửa hàng</title>
+    <title>Qu?n l� c?a h�ng</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary:#4f46e5; --primary-d:#3730a3; --accent:#f59e0b; --dark:#1e1b4b; --light-bg:#f5f5ff; --card-shadow:0 4px 20px rgba(79,70,229,.12);}        
         * { box-sizing:border-box; }
-        body { font-family:'Nunito',sans-serif; background:var(--light-bg); color:#374151; min-height:100vh; display:flex; flex-direction:column; }
-        .main-navbar { background:rgba(30,27,75,.92); padding:.6rem 1.5rem; position:sticky; top:0; z-index:9999; backdrop-filter:blur(12px); box-shadow:0 2px 12px rgba(0,0,0,.25); }
+        html, body { margin:0; padding:0; }
+        body { margin:0; font-family:'Nunito',sans-serif; background:var(--light-bg); color:#374151; min-height:100vh; display:flex; flex-direction:column; }
+        :root { --navbar-height: 72px; }
+        .main-navbar { background:rgba(30,27,75,.95); padding:.75rem 1.25rem; position:fixed; top:0; left:0; right:0; width:100%; z-index:9999; backdrop-filter:blur(12px); box-shadow:0 4px 18px rgba(0,0,0,.18); display:flex; align-items:center; justify-content:space-between; }
         .main-navbar .navbar-brand { font-size:1.4rem; font-weight:800; color:#fff!important; margin-right:1.5rem; }
         .main-navbar .navbar-brand span { color:var(--accent); }
-        .main-navbar .nav-link { color:rgba(255,255,255,.75)!important; font-weight:600; border-radius:8px; padding:.45rem .9rem!important; }
-        .main-navbar .nav-link:hover, .main-navbar .nav-link.active { background:rgba(255,255,255,.12); color:#fff!important; }
-        .navbar-search { display:flex; align-items:center; gap:.4rem; margin:0 1rem; }
-        .navbar-search .ns-input { background:rgba(255,255,255,.1); border:1.5px solid rgba(255,255,255,.2); border-radius:22px; color:#fff; font-weight:600; font-size:.88rem; padding:.38rem 1rem .38rem 2.4rem; width:240px; outline:none; }
-        .navbar-search .ns-input::placeholder { color:rgba(255,255,255,.5); }
-        .navbar-search .ns-wrap { position:relative; }
-        .navbar-search .ns-icon { position:absolute; left:.85rem; top:50%; transform:translateY(-50%); color:rgba(255,255,255,.5); font-size:.8rem; }
-        .navbar-search .ns-btn { background:var(--accent); border:none; border-radius:22px; color:var(--dark); font-weight:800; font-size:.8rem; padding:.38rem .95rem; }
-        .main-navbar .dropdown-menu { background:var(--dark); border:1px solid rgba(255,255,255,.1); border-radius:10px; margin-top:6px; min-width:180px; }
-        .main-navbar .dropdown-item { color:rgba(255,255,255,.8); font-weight:600; }
-        .main-navbar .dropdown-item:hover { background:rgba(255,255,255,.1); color:#fff; }
-        .main-navbar .dropdown-divider { border-color:rgba(255,255,255,.1); }
-        .page-wrapper { flex:1; padding:2rem 0 3rem; }
+        .navbar-actions { display:flex; align-items:center; gap:.65rem; }
+        .btn-manage {
+            border:none;
+            border-radius:10px;
+            background:linear-gradient(180deg, #5c53f0 0%, #4f46e5 100%);
+            color:#fff;
+            font-weight:800;
+            font-size:.92rem;
+            padding:.5rem .95rem;
+            box-shadow:0 8px 18px rgba(79,70,229,.35);
+        }
+        .btn-manage:hover { background:#4338ca; color:#fff; }
+        .btn-cart-link {
+            display:inline-flex;
+            align-items:center;
+            gap:.42rem;
+            text-decoration:none;
+            color:#fff;
+            font-weight:700;
+            border-radius:10px;
+            padding:.48rem .8rem;
+            background:rgba(255,255,255,.1);
+            border:1px solid rgba(255,255,255,.14);
+        }
+        .btn-cart-link:hover { color:#fff; text-decoration:none; background:rgba(255,255,255,.16); }
+        .btn-cart-link .badge { font-size:.75rem; }
+        .btn-home-link {
+            display:inline-flex;
+            align-items:center;
+            gap:.42rem;
+            text-decoration:none;
+            color:#fff;
+            font-weight:700;
+            border-radius:10px;
+            padding:.48rem .8rem;
+            background:rgba(255,255,255,.1);
+            border:1px solid rgba(255,255,255,.14);
+        }
+        .btn-home-link:hover { color:#fff; text-decoration:none; background:rgba(255,255,255,.16); }
+        .admin-sidebar-backdrop {
+            position:fixed; inset:0; background:rgba(15, 23, 42, .35);
+            opacity:0; pointer-events:none; transition:opacity .22s ease; z-index:9950;
+        }
+        .admin-sidebar {
+            position:fixed; top:var(--navbar-height); left:0; bottom:0;
+            width:250px; background:#1f1b4f; color:#fff;
+            transform:translateX(-100%); transition:transform .25s ease;
+            z-index:9960; padding:1rem .8rem; overflow-y:auto;
+            border-right:1px solid rgba(255,255,255,.08);
+        }
+        .admin-sidebar h6 {
+            font-size:.75rem; letter-spacing:1px; text-transform:uppercase;
+            color:rgba(255,255,255,.55); margin:.4rem .5rem .7rem;
+        }
+        .admin-nav-link {
+            display:flex; align-items:center; gap:.58rem; color:rgba(255,255,255,.84);
+            text-decoration:none; padding:.62rem .72rem; border-radius:9px; font-weight:700; margin-bottom:.34rem;
+        }
+        .admin-nav-link:hover { background:rgba(255,255,255,.1); color:#fff; text-decoration:none; }
+        body.admin-mode .admin-sidebar { transform:translateX(0); }
+        body.admin-mode .admin-sidebar-backdrop { opacity:1; pointer-events:auto; }
+        body.admin-mode .page-wrapper { padding-left:250px; transition:padding-left .25s ease; }
+        @media (max-width: 991px) {
+            body.admin-mode .page-wrapper { padding-left:0; }
+        }
+        .page-wrapper { flex:1; padding:calc(var(--navbar-height) + 2rem) 0 3rem; }
         .btn { font-weight:700; border-radius:8px; }
         .btn-primary { background:var(--primary); border-color:var(--primary); }
     </style>
 </head>
 <body>
 <?php
-if (session_status() === PHP_SESSION_NONE) session_start();
 $navSearch = trim($_GET['search'] ?? '');
 $cartQty = array_sum(array_column($_SESSION['cart'] ?? [], 'quantity'));
 ?>
-<nav class="navbar navbar-expand-lg main-navbar">
-    <a class="navbar-brand" href="/Product"><i class="fas fa-store"></i> Shop<span>Admin</span></a>
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#mainNav"><span style="color:#fff;font-size:1.3rem;"><i class="fas fa-bars"></i></span></button>
-    <div class="collapse navbar-collapse" id="mainNav">
-        <form method="GET" action="/Product" class="navbar-search mx-auto">
-            <div class="ns-wrap"><i class="fas fa-search ns-icon"></i><input type="text" name="search" class="ns-input" placeholder="Tìm sản phẩm..." value="<?php echo htmlspecialchars($navSearch); ?>" autocomplete="off"></div>
-            <button type="submit" class="ns-btn"><i class="fas fa-search mr-1"></i> Tìm</button>
-        </form>
-
-        <ul class="navbar-nav ml-auto">
-            <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" href="#" id="prodDropdown" role="button" data-toggle="dropdown"><i class="fas fa-box-open"></i> Sản phẩm</a>
-                <div class="dropdown-menu" aria-labelledby="prodDropdown">
-                    <a class="dropdown-item" href="/Product"><i class="fas fa-list mr-2"></i>Danh sách</a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="/Product/add"><i class="fas fa-plus mr-2"></i>Thêm sản phẩm</a>
-                </div>
-            </li>
-            <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" href="#" id="catDropdown" role="button" data-toggle="dropdown"><i class="fas fa-tags"></i> Danh mục</a>
-                <div class="dropdown-menu" aria-labelledby="catDropdown">
-                    <a class="dropdown-item" href="/Category"><i class="fas fa-list mr-2"></i>Danh sách</a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="/Category/add"><i class="fas fa-plus mr-2"></i>Thêm danh mục</a>
-                </div>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/Cart"><i class="fas fa-shopping-cart"></i> Giỏ hàng <span class="badge badge-warning"><?php echo (int)$cartQty; ?></span></a>
-            </li>
-            <li class="nav-item"><a class="nav-link" href="/Cart/orders"><i class="fas fa-receipt"></i> Đơn hàng</a></li>
-        </ul>
+<nav class="main-navbar">
+    <a class="navbar-brand mb-0" href="/Home"><i class="fas fa-store"></i> Shop<span>Admin</span></a>
+    <div class="navbar-actions">
+        <a class="btn-home-link" href="/Home">
+            <i class="fas fa-home"></i> Trang chủ
+        </a>
+        <button id="manageToggleBtn" type="button" class="btn-manage">
+            <i class="fas fa-bars mr-1"></i> Quản lý
+        </button>
+        <a class="btn-cart-link" href="/Cart">
+            <i class="fas fa-shopping-cart"></i> Giỏ hàng
+            <span id="cartQtyBadge" class="badge badge-warning"><?php echo (int)$cartQty; ?></span>
+        </a>
     </div>
 </nav>
+
+<div id="adminSidebarBackdrop" class="admin-sidebar-backdrop"></div>
+<aside id="adminSidebar" class="admin-sidebar">
+    <h6>Điều hướng quản trị</h6>
+    <a href="/Dashboard" class="admin-nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
+    <a href="/Product" class="admin-nav-link"><i class="fas fa-box-open"></i> Sản phẩm</a>
+    <a href="/Category" class="admin-nav-link"><i class="fas fa-tags"></i> Danh mục</a>
+    <a href="/Cart/orders" class="admin-nav-link"><i class="fas fa-receipt"></i> Đơn hàng</a>
+</aside>
 
 <div class="page-wrapper">
     <div class="container">
         <?php if (!empty($_SESSION['cart_error'])): ?>
             <div class="alert alert-danger mt-2"><?php echo htmlspecialchars($_SESSION['cart_error']); unset($_SESSION['cart_error']); ?></div>
         <?php endif; ?>
+
