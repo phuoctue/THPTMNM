@@ -6,10 +6,17 @@ $bankAccountNo = '08968985867';
 $bankAccountName = 'PHAM PHUOC TUE';
 $transferContent = 'DH' . (int)($nextOrderId ?? 0);
 $qrAmount = (int)$totalPrice;
-$qrUrl = 'https://img.vietqr.io/image/' . $bankCode . '-' . $bankAccountNo . '-compact2.png'
+$qrVietQrUrl = 'https://img.vietqr.io/image/' . $bankCode . '-' . $bankAccountNo . '-compact2.png'
     . '?amount=' . $qrAmount
     . '&addInfo=' . rawurlencode($transferContent)
     . '&accountName=' . rawurlencode($bankAccountName);
+$qrFallbackText = 'BANK:' . $bankCode
+    . '|ACC:' . $bankAccountNo
+    . '|NAME:' . $bankAccountName
+    . '|AMOUNT:' . $qrAmount
+    . '|INFO:' . $transferContent;
+$qrUrl = 'https://quickchart.io/qr?size=260&text=' . rawurlencode($qrFallbackText);
+$qrFallbackUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' . rawurlencode($qrFallbackText);
 ?>
 
 <style>
@@ -108,7 +115,10 @@ $qrUrl = 'https://img.vietqr.io/image/' . $bankCode . '-' . $bankAccountNo . '-c
                             <div id="bankQrWrap" class="bank-qr-wrap" style="display:none;">
                                 <div class="bank-qr-title"><i class="fas fa-qrcode mr-1 text-primary"></i> Thanh toán qua QR Code</div>
                                 <div class="bank-qr-box">
-                                    <img src="<?php echo htmlspecialchars($qrUrl); ?>" alt="QR thanh toán" class="bank-qr-img">
+                                    <img src="<?php echo htmlspecialchars($qrUrl); ?>"
+                                         alt="QR thanh toán"
+                                         class="bank-qr-img"
+                                         onerror="if(!this.dataset.step){this.dataset.step='1';this.src='<?php echo htmlspecialchars($qrVietQrUrl, ENT_QUOTES); ?>';return;} if(this.dataset.step==='1'){this.dataset.step='2';this.src='<?php echo htmlspecialchars($qrFallbackUrl, ENT_QUOTES); ?>';return;} this.onerror=null; this.style.display='none'; this.parentNode.insertAdjacentHTML('beforeend','<div style=&quot;padding:12px;font-size:13px;color:#6b7280;text-align:center;&quot;>Khong tai duoc QR tu server ngoai.<br>Vui long chuyen khoan theo STK ben duoi.</div>');">
                                 </div>
                                 <div class="bank-qr-note">
                                     <div class="font-weight-700">Quét mã QR để thanh toán nhanh</div>
