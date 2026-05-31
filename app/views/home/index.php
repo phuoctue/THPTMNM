@@ -1,5 +1,12 @@
 ﻿<?php include 'app/views/shares/header.php'; ?>
 
+<?php
+require_once 'app/libs/ViewHelper.php';
+$flash = ViewHelper::consumeFlash();
+$errors = $flash['errors'];
+$success = $flash['success'];
+?>
+
 <style>
 /* ── Page title ──────────────────────────────────────────────────────── */
 .page-title {
@@ -479,6 +486,8 @@ $slideGradients = [
 </script>
 <?php endif; ?>
 
+<?php require 'app/views/shares/flash.php'; ?>
+
 <!-- ── Header row ─────────────────────────────────────────────────────── -->
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap:1rem; margin-top: <?php echo ($search === '' && count($sliderProducts) > 0) ? '0' : '0'; ?>">
     <h1 class="page-title mb-0">
@@ -598,6 +607,3 @@ $slideGradients = [
 <?php endif; ?>
 
 <?php include 'app/views/shares/footer.php'; ?>
-
-
-

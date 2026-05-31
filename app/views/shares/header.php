@@ -55,6 +55,98 @@
             border:1px solid rgba(255,255,255,.14);
         }
         .btn-home-link:hover { color:#fff; text-decoration:none; background:rgba(255,255,255,.16); }
+        .btn-auth-link {
+            display:inline-flex;
+            align-items:center;
+            gap:.42rem;
+            text-decoration:none;
+            color:#fff;
+            font-weight:700;
+            border-radius:10px;
+            padding:.48rem .8rem;
+            background:rgba(255,255,255,.1);
+            border:1px solid rgba(255,255,255,.14);
+        }
+        .btn-auth-link:hover { color:#fff; text-decoration:none; background:rgba(255,255,255,.16); }
+        .user-menu {
+            position:relative;
+        }
+        .user-info {
+            display:inline-flex;
+            align-items:center;
+            gap:.6rem;
+            color:#fff;
+            padding:0 .8rem;
+            border-radius:12px;
+            cursor:pointer;
+            border:1px solid rgba(255,255,255,.14);
+            background:rgba(255,255,255,.08);
+        }
+        .user-info:hover,
+        .user-info:focus {
+            color:#fff;
+            text-decoration:none;
+            background:rgba(255,255,255,.14);
+        }
+        .user-menu .dropdown-toggle::after {
+            margin-left:.45rem;
+            vertical-align:.18em;
+        }
+        .user-menu .dropdown-menu {
+            min-width:260px;
+            margin-top:.25rem;
+            padding:.5rem;
+            border:1px solid rgba(255,255,255,.08);
+            background:rgba(15, 23, 42, .98);
+            box-shadow:0 20px 40px rgba(0,0,0,.25);
+            border-radius:14px;
+        }
+        .user-menu .dropdown-menu::before {
+            content:'';
+            position:absolute;
+            top:-10px;
+            left:0;
+            right:0;
+            height:10px;
+        }
+        .user-menu .dropdown-item {
+            color:#fff;
+            font-weight:700;
+            border-radius:10px;
+            padding:.7rem .85rem;
+        }
+        .user-menu .dropdown-item:hover,
+        .user-menu .dropdown-item:focus {
+            color:#fff;
+            background:rgba(255,255,255,.08);
+        }
+        .user-menu .dropdown-item.logout {
+            color:#ffb4b4;
+        }
+        .user-menu .dropdown-item.logout:hover,
+        .user-menu .dropdown-item.logout:focus {
+            color:#ffd1d1;
+            background:rgba(255,107,107,.12);
+        }
+        .user-menu:hover .dropdown-menu,
+        .user-menu:focus-within .dropdown-menu {
+            display:block;
+        }
+        .user-menu .dropdown-divider {
+            border-top:1px solid rgba(255,255,255,.08);
+            margin:.35rem .2rem;
+        }
+        .user-avatar {
+            width:32px;
+            height:32px;
+            border-radius:50%;
+            background:linear-gradient(135deg, #5c53f0 0%, #4f46e5 100%);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-weight:800;
+            font-size:.85rem;
+        }
         .admin-sidebar-backdrop {
             position:fixed; inset:0; background:rgba(15, 23, 42, .35);
             opacity:0; pointer-events:none; transition:opacity .22s ease; z-index:9950;
@@ -88,6 +180,12 @@
 </head>
 <body>
 <?php
+// INCLUDE AUTHHELPER ĐỂ KIỂM TRA TRẠNG THÁI ĐĂNG NHẬP
+require_once 'app/libs/AuthHelper.php';
+$isLoggedIn = AuthHelper::isLoggedIn();
+$isAdmin = AuthHelper::isAdmin();
+$userName = AuthHelper::getUserName();
+
 $navSearch = trim($_GET['search'] ?? '');
 $cartQty = array_sum(array_column($_SESSION['cart'] ?? [], 'quantity'));
 ?>
@@ -97,17 +195,57 @@ $cartQty = array_sum(array_column($_SESSION['cart'] ?? [], 'quantity'));
         <a class="btn-home-link" href="/Home">
             <i class="fas fa-home"></i> Trang chủ
         </a>
+        
+        <!-- NÚT QUẢN LÝ - CHỈ ADMIN MỚI THẤY -->
+        <?php if ($isAdmin): ?>
         <button id="manageToggleBtn" type="button" class="btn-manage">
             <i class="fas fa-bars mr-1"></i> Quản lý
         </button>
+        <?php endif; ?>
+        
         <a class="btn-cart-link" href="/Cart">
             <i class="fas fa-shopping-cart"></i> Giỏ hàng
             <span id="cartQtyBadge" class="badge badge-warning"><?php echo (int)$cartQty; ?></span>
         </a>
+
+        <!-- PHẦN AUTHENTICATION - ĐĂNG NHẬP/ĐĂNG XUẤT -->
+        <?php if ($isLoggedIn): ?>
+            <!-- NẾU ĐÃ ĐĂNG NHẬP - HIỂN THỊ THÔNG TIN NGƯỜI DÙNG -->
+            <div class="user-menu dropdown">
+                <button type="button" class="user-info dropdown-toggle" id="userMenuDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="<?php echo htmlspecialchars($userName); ?>">
+                    <div class="user-avatar">
+                        <?php echo strtoupper(substr($userName, 0, 1)); ?>
+                    </div>
+                    <span style="font-size: .85rem;">
+                        <?php echo htmlspecialchars(strlen($userName) > 15 ? substr($userName, 0, 15) . '...' : $userName); ?>
+                    </span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="userMenuDropdown">
+                    <a class="dropdown-item" href="/profile">
+                        <i class="fas fa-user mr-2"></i> Hồ sơ
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a class="dropdown-item logout" href="/auth/logout">
+                        <i class="fas fa-sign-out-alt mr-2"></i> Đăng xuất
+                    </a>
+                </div>
+            </div>
+        <?php else: ?>
+            <!-- NẾU CHƯA ĐĂNG NHẬP - HIỂN THỊ NÚT ĐĂNG NHẬP & ĐĂNG KÝ -->
+            <a class="btn-auth-link" href="/auth/login" title="Đăng nhập">
+                <i class="fas fa-sign-in-alt"></i> Đăng nhập
+            </a>
+            <a class="btn-auth-link" href="/auth/register" title="Đăng ký">
+                <i class="fas fa-user-plus"></i> Đăng ký
+            </a>
+        <?php endif; ?>
     </div>
 </nav>
 
 <div id="adminSidebarBackdrop" class="admin-sidebar-backdrop"></div>
+
+<!-- SIDEBAR QUẢN LÝ - CHỈ ADMIN MỚI THẤY -->
+<?php if ($isAdmin): ?>
 <aside id="adminSidebar" class="admin-sidebar">
     <h6>Điều hướng quản trị</h6>
     <a href="/Dashboard" class="admin-nav-link"><i class="fas fa-chart-line"></i> Dashboard</a>
@@ -115,10 +253,10 @@ $cartQty = array_sum(array_column($_SESSION['cart'] ?? [], 'quantity'));
     <a href="/Category" class="admin-nav-link"><i class="fas fa-tags"></i> Danh mục</a>
     <a href="/Cart/orders" class="admin-nav-link"><i class="fas fa-receipt"></i> Đơn hàng</a>
 </aside>
+<?php endif; ?>
 
 <div class="page-wrapper">
     <div class="container">
         <?php if (!empty($_SESSION['cart_error'])): ?>
             <div class="alert alert-danger mt-2"><?php echo htmlspecialchars($_SESSION['cart_error']); unset($_SESSION['cart_error']); ?></div>
         <?php endif; ?>
-

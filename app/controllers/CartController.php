@@ -134,13 +134,15 @@ class CartController {
         $paymentMethod = $_POST['payment_method']        ?? 'cod';
 
         if (!$name || !$phone || !$address) {
-            $_SESSION['checkout_error'] = 'Vui lòng điền đầy đủ thông tin bắt buộc.';
+            $_SESSION['errors'] = ['Vui lòng điền đầy đủ thông tin bắt buộc.'];
+            $_SESSION['old_data'] = compact('name', 'phone', 'email', 'address', 'note', 'paymentMethod');
             header('Location: /Cart/checkout');
             return;
         }
 
         if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $_SESSION['checkout_error'] = 'Email không hợp lệ.';
+            $_SESSION['errors'] = ['Email không hợp lệ.'];
+            $_SESSION['old_data'] = compact('name', 'phone', 'email', 'address', 'note', 'paymentMethod');
             header('Location: /Cart/checkout');
             return;
         }
@@ -153,7 +155,7 @@ class CartController {
         if ($orderId) {
             header("Location: /Cart/success?order_id={$orderId}");
         } else {
-            $_SESSION['checkout_error'] = 'Giỏ hàng trống, không thể đặt hàng.';
+            $_SESSION['errors'] = ['Giỏ hàng trống, không thể đặt hàng.'];
             header('Location: /Cart/checkout');
         }
     }

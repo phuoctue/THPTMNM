@@ -1,3 +1,11 @@
+<?php
+require_once 'app/libs/ViewHelper.php';
+$flash = ViewHelper::consumeFlash();
+$errors = $flash['errors'];
+$success = $flash['success'];
+$oldData = $flash['old_data'];
+?>
+
 <?php include 'app/views/shares/header.php'; ?>
 <?php
 $bankName = 'TPBank';
@@ -68,9 +76,7 @@ $qrFallbackUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=
 <div class="container mt-4">
     <h2 class="mb-4"><i class="fas fa-credit-card text-success"></i> Thanh toán</h2>
 
-    <?php if (!empty($_SESSION['checkout_error'])): ?>
-        <div class="alert alert-danger"><?php echo htmlspecialchars($_SESSION['checkout_error']); unset($_SESSION['checkout_error']); ?></div>
-    <?php endif; ?>
+    <?php require 'app/views/shares/flash.php'; ?>
 
     <div class="row">
         <div class="col-lg-7 mb-4">
@@ -80,35 +86,35 @@ $qrFallbackUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=
                     <form action="/Cart/placeOrder" method="POST">
                         <div class="form-group">
                             <label>Họ tên *</label>
-                            <input type="text" name="customer_name" class="form-control" required>
+                            <input type="text" name="customer_name" class="form-control" value="<?php echo htmlspecialchars($oldData['name'] ?? ''); ?>" required>
                         </div>
                         <div class="form-row">
                             <div class="form-group col-md-6">
                                 <label>Số điện thoại *</label>
-                                <input type="text" name="customer_phone" class="form-control" required>
+                                <input type="text" name="customer_phone" class="form-control" value="<?php echo htmlspecialchars($oldData['phone'] ?? ''); ?>" required>
                             </div>
                             <div class="form-group col-md-6">
                                 <label>Email</label>
-                                <input type="email" name="customer_email" class="form-control">
+                                <input type="email" name="customer_email" class="form-control" value="<?php echo htmlspecialchars($oldData['email'] ?? ''); ?>">
                             </div>
                         </div>
                         <div class="form-group">
                             <label>Địa chỉ *</label>
-                            <textarea name="customer_address" rows="3" class="form-control" required></textarea>
+                            <textarea name="customer_address" rows="3" class="form-control" required><?php echo htmlspecialchars($oldData['address'] ?? ''); ?></textarea>
                         </div>
                         <div class="form-group">
                             <label>Ghi chú</label>
-                            <textarea name="note" rows="3" class="form-control"></textarea>
+                            <textarea name="note" rows="3" class="form-control"><?php echo htmlspecialchars($oldData['note'] ?? ''); ?></textarea>
                         </div>
 
                         <div class="form-group">
                             <label>Phương thức thanh toán</label>
                             <div class="custom-control custom-radio">
-                                <input type="radio" id="pmCod" name="payment_method" value="cod" class="custom-control-input" checked>
+                                <input type="radio" id="pmCod" name="payment_method" value="cod" class="custom-control-input" <?php echo ($oldData['paymentMethod'] ?? 'cod') === 'cod' ? 'checked' : ''; ?>>
                                 <label class="custom-control-label" for="pmCod">COD - Thanh toán khi nhan hang</label>
                             </div>
                             <div class="custom-control custom-radio mt-2">
-                                <input type="radio" id="pmBanking" name="payment_method" value="banking" class="custom-control-input">
+                                <input type="radio" id="pmBanking" name="payment_method" value="banking" class="custom-control-input" <?php echo ($oldData['paymentMethod'] ?? '') === 'banking' ? 'checked' : ''; ?>>
                                 <label class="custom-control-label" for="pmBanking">Chuyển khoản ngân hàng</label>
                             </div>
 

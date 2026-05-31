@@ -1,3 +1,9 @@
+<?php
+require_once 'app/libs/ViewHelper.php';
+$errors = isset($error) ? [$error] : [];
+$success = '';
+?>
+
 <?php include 'app/views/shares/header.php'; ?>
 
 <style>
@@ -14,9 +20,7 @@
 <div class="form-card">
     <h1><i class="fas fa-edit"></i> Sửa danh mục</h1>
 
-    <?php if (isset($error)): ?>
-        <div class="alert alert-danger"><?php echo $error; ?></div>
-    <?php endif; ?>
+    <?php require 'app/views/shares/flash.php'; ?>
 
     <form method="POST" action="/Category/update">
 

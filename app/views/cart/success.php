@@ -1,8 +1,10 @@
 ﻿<?php include 'app/views/shares/header.php'; ?>
 
+<?php require_once 'app/libs/ViewHelper.php'; ?>
+
 <div class="container mt-4">
     <?php if (!$order): ?>
-        <div class="alert alert-danger">Không tìm thấy đơn hàng.</div>
+        <?php $errors = ['Không tìm thấy đơn hàng.']; $success = ''; require 'app/views/shares/flash.php'; ?>
         <a href="/Product" class="btn btn-primary">Về trang sản phẩm</a>
     <?php else: ?>
         <div class="card border-0 shadow-sm text-center">
@@ -48,4 +50,3 @@
 </div>
 
 <?php include 'app/views/shares/footer.php'; ?>
-

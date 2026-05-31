@@ -38,8 +38,8 @@
     </div>
 </footer>
 
-<div id="cartToastWrap" aria-live="polite" aria-atomic="true" style="position: fixed; top: 84px; right: 16px; z-index: 11000;">
-    <div id="cartToast" class="toast" role="alert" data-delay="1800" style="min-width: 280px;">
+<div id="cartToastWrap" aria-live="polite" aria-atomic="true" style="position: fixed; top: 84px; right: 16px; z-index: 11000; pointer-events: none;">
+    <div id="cartToast" class="toast" role="alert" data-delay="1800" style="min-width: 280px; pointer-events: auto;">
         <div id="cartToastHeader" class="toast-header bg-success text-white">
             <i class="fas fa-check-circle mr-2"></i>
             <strong class="mr-auto" id="cartToastTitle">Thông báo</strong>
@@ -53,8 +53,7 @@
 
 <!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
 <script>
 (function () {
     function setupAdminSidebar() {
