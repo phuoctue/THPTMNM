@@ -125,6 +125,32 @@ class CartModel {
         return $stmt->fetchAll(PDO::FETCH_OBJ);
     }
 
+    /**
+     * Lấy danh sách đơn hàng theo email khách hàng.
+     * Dùng cho trang lịch sử đơn hàng của tài khoản đã đăng nhập.
+     */
+    public function getOrdersByCustomerEmail(string $email): array
+    {
+        $email = trim(strtolower($email));
+        if ($email === '') {
+            return [];
+        }
+
+        $stmt = $this->conn->prepare("
+            SELECT
+                o.*,
+                COUNT(oi.id) AS item_count
+            FROM orders o
+            LEFT JOIN order_items oi ON oi.order_id = o.id
+            WHERE LOWER(o.customer_email) = :email
+            GROUP BY o.id
+            ORDER BY o.created_at DESC
+        ");
+        $stmt->execute([':email' => $email]);
+
+        return $stmt->fetchAll(PDO::FETCH_OBJ);
+    }
+
     public function getOrderById(int $id): object|false {
         $stmt = $this->conn->prepare("SELECT * FROM orders WHERE id = :id");
         $stmt->execute([':id' => $id]);
@@ -132,7 +158,17 @@ class CartModel {
     }
 
     public function getOrderItems(int $orderId): array {
-        $stmt = $this->conn->prepare("SELECT * FROM order_items WHERE order_id = :id");
+        // Lấy thêm ảnh sản phẩm gốc để làm phương án dự phòng khi order_items.image bị thiếu
+        $stmt = $this->conn->prepare("
+            SELECT
+                oi.*,
+                COALESCE(NULLIF(oi.image, ''), p.image) AS display_image,
+                p.image AS product_image
+            FROM order_items oi
+            LEFT JOIN product p ON p.id = oi.product_id
+            WHERE oi.order_id = :id
+            ORDER BY oi.id ASC
+        ");
         $stmt->execute([':id' => $orderId]);
         return $stmt->fetchAll(PDO::FETCH_OBJ);
     }

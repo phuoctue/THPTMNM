@@ -1,229 +1,491 @@
 <?php
 /**
- * UserModel.php - Model quản lý người dùng
- * Xử lý các thao tác liên quan đến bảng users trong database
+ * UserModel.php
+ * Model xử lý toàn bộ nghiệp vụ liên quan đến người dùng và các token xác thực.
  */
 
 require_once 'app/config/database.php';
 
-class UserModel {
-    private $conn;
-    private $table = 'users';
+class UserModel
+{
+    private PDO $conn;
+    private string $table = 'users';
 
-    public function __construct() {
-        // Lấy kết nối database
+    public function __construct()
+    {
         $db = new Database();
         $this->conn = $db->getConnection();
     }
 
     /**
-     * ĐĂNG KÝ NGƯỜI DÙNG MỚI
-     * 
-     * @param array $data - Dữ liệu người dùng ['full_name', 'email', 'password', 'phone', 'address']
-     * @return bool - True nếu thành công, False nếu thất bại
+     * Đăng ký người dùng mới.
+     * Trả về ID người dùng mới nếu thành công, false nếu thất bại.
      */
-    public function register($data) {
+    public function register(array $data)
+    {
         try {
-            // Kiểm tra email đã tồn tại chưa
-            if ($this->findByEmail($data['email'])) {
-                return false; // Email đã tồn tại
-            }
-
-            // Hash password
-            $hashedPassword = password_hash($data['password'], PASSWORD_BCRYPT);
-
-            // Chuẩn bị câu lệnh SQL
-            $query = "INSERT INTO " . $this->table . " 
-                      (full_name, email, password, phone, address, role) 
-                      VALUES 
-                      (:full_name, :email, :password, :phone, :address, 'customer')";
-
-            $stmt = $this->conn->prepare($query);
-
-            // Bind các tham số (ngăn chặn SQL Injection)
-            $stmt->bindParam(':full_name', trim($data['full_name']));
-            $stmt->bindParam(':email', trim(strtolower($data['email'])));
-            $stmt->bindParam(':password', $hashedPassword);
-            $stmt->bindParam(':phone', trim($data['phone'] ?? null));
-            $stmt->bindParam(':address', trim($data['address'] ?? null));
-
-            // Thực thi câu lệnh
-            if ($stmt->execute()) {
-                return true;
-            }
-            return false;
-
-        } catch (PDOException $e) {
-            error_log("Database error: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * TÌM NGƯỜI DÙNG BẰNG EMAIL
-     * 
-     * @param string $email - Email cần tìm
-     * @return array|false - Mảng thông tin người dùng hoặc False
-     */
-    public function findByEmail($email) {
-        try {
-            $query = "SELECT * FROM " . $this->table . " WHERE email = :email LIMIT 1";
-            
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':email', strtolower(trim($email)));
-            $stmt->execute();
-
-            return $stmt->fetch(PDO::FETCH_ASSOC);
-
-        } catch (PDOException $e) {
-            error_log("Database error: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * TÌM NGƯỜI DÙNG BẰNG ID
-     * 
-     * @param int $id - ID người dùng
-     * @return array|false - Mảng thông tin người dùng hoặc False
-     */
-    public function findById($id) {
-        try {
-            $query = "SELECT * FROM " . $this->table . " WHERE id = :id LIMIT 1";
-            
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-            $stmt->execute();
-
-            return $stmt->fetch(PDO::FETCH_ASSOC);
-
-        } catch (PDOException $e) {
-            error_log("Database error: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * CẬP NHẬT THÔNG TIN NGƯỜI DÙNG
-     * 
-     * @param int $id - ID người dùng
-     * @param array $data - Dữ liệu cần cập nhật
-     * @return bool - True nếu thành công
-     */
-    public function update($id, $data) {
-        try {
-            $query = "UPDATE " . $this->table . " SET ";
-            $updates = [];
-
-            // Xây dựng câu lệnh UPDATE động
-            foreach ($data as $key => $value) {
-                // Chỉ cho phép cập nhật các field nhất định
-                if (in_array($key, ['full_name', 'phone', 'address'])) {
-                    $updates[] = "$key = :$key";
-                }
-            }
-
-            if (empty($updates)) {
+            if ($this->findByEmail($data['email'], true)) {
                 return false;
             }
 
-            $query .= implode(', ', $updates) . " WHERE id = :id";
+            $sql = "INSERT INTO {$this->table}
+                    (full_name, email, password, phone, address, role, status, avatar, email_verified_at, deleted_at)
+                    VALUES
+                    (:full_name, :email, :password, :phone, :address, :role, 'active', NULL, NULL, NULL)";
+            $stmt = $this->conn->prepare($sql);
 
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
+            $stmt->bindValue(':full_name', trim($data['full_name']));
+            $stmt->bindValue(':email', strtolower(trim($data['email'])));
+            $stmt->bindValue(':password', $hashedPassword);
+            $stmt->bindValue(':phone', trim($data['phone'] ?? ''));
+            $stmt->bindValue(':address', trim($data['address'] ?? ''));
+            $stmt->bindValue(':role', $data['role'] ?? 'customer');
 
-            foreach ($data as $key => $value) {
-                if (in_array($key, ['full_name', 'phone', 'address'])) {
-                    $stmt->bindParam(":$key", $data[$key]);
-                }
+            if (!$stmt->execute()) {
+                return false;
             }
 
-            return $stmt->execute();
-
+            return (int) $this->conn->lastInsertId();
         } catch (PDOException $e) {
-            error_log("Database error: " . $e->getMessage());
+            error_log('UserModel register error: ' . $e->getMessage());
             return false;
         }
     }
 
-    /**
-     * XÓA NGƯỜI DÙNG
-     * 
-     * @param int $id - ID người dùng
-     * @return bool - True nếu thành công
-     */
-    public function delete($id) {
+    public function findByEmail(string $email, bool $includeDeleted = false)
+    {
         try {
-            $query = "DELETE FROM " . $this->table . " WHERE id = :id";
-            
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $sql = "SELECT * FROM {$this->table} WHERE email = :email";
+            if (!$includeDeleted) {
+                $sql .= " AND deleted_at IS NULL";
+            }
+            $sql .= " LIMIT 1";
 
-            return $stmt->execute();
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':email', strtolower(trim($email)));
+            $stmt->execute();
 
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: false;
         } catch (PDOException $e) {
-            error_log("Database error: " . $e->getMessage());
+            error_log('UserModel findByEmail error: ' . $e->getMessage());
             return false;
         }
     }
 
-    /**
-     * LẤY TẤT CẢ NGƯỜI DÙNG (CHO ADMIN)
-     * 
-     * @return array - Mảng người dùng
-     */
-    public function getAll() {
+    public function findById(int $id, bool $includeDeleted = false)
+    {
         try {
-            $query = "SELECT id, full_name, email, phone, role, created_at FROM " . $this->table . " ORDER BY created_at DESC";
-            
-            $stmt = $this->conn->prepare($query);
+            $sql = "SELECT * FROM {$this->table} WHERE id = :id";
+            if (!$includeDeleted) {
+                $sql .= " AND deleted_at IS NULL";
+            }
+            $sql .= " LIMIT 1";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: false;
+        } catch (PDOException $e) {
+            error_log('UserModel findById error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getAll(bool $includeDeleted = false): array
+    {
+        try {
+            $sql = "SELECT id, full_name, email, phone, address, role, status, avatar, email_verified_at, created_at, updated_at, deleted_at
+                    FROM {$this->table}";
+            if (!$includeDeleted) {
+                $sql .= " WHERE deleted_at IS NULL";
+            }
+            $sql .= " ORDER BY created_at DESC";
+
+            $stmt = $this->conn->prepare($sql);
             $stmt->execute();
 
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
-
         } catch (PDOException $e) {
-            error_log("Database error: " . $e->getMessage());
+            error_log('UserModel getAll error: ' . $e->getMessage());
             return [];
         }
     }
 
     /**
-     * ĐỔI MẬT KHẨU
-     * 
-     * @param int $id - ID người dùng
-     * @param string $oldPassword - Mật khẩu cũ (để xác minh)
-     * @param string $newPassword - Mật khẩu mới
-     * @return bool - True nếu thành công
+     * Cập nhật hồ sơ cá nhân.
      */
-    public function changePassword($id, $oldPassword, $newPassword) {
+    public function updateProfile(int $id, array $data): bool
+    {
         try {
-            // Lấy user để kiểm tra password cũ
-            $user = $this->findById($id);
-            
-            if (!$user) {
-                return false; // User không tồn tại
-            }
-
-            // Kiểm tra password cũ có đúng không
-            if (!password_verify($oldPassword, $user['password'])) {
-                return false; // Password cũ không chính xác
-            }
-
-            // Hash password mới
-            $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
-
-            // Update password
-            $query = "UPDATE " . $this->table . " SET password = :password WHERE id = :id";
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(':password', $hashedPassword);
-            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $sql = "UPDATE {$this->table} SET full_name = :full_name, phone = :phone, address = :address WHERE id = :id AND deleted_at IS NULL";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':full_name', trim($data['full_name'] ?? ''));
+            $stmt->bindValue(':phone', trim($data['phone'] ?? ''));
+            $stmt->bindValue(':address', trim($data['address'] ?? ''));
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
 
             return $stmt->execute();
-
         } catch (PDOException $e) {
-            error_log("Database error: " . $e->getMessage());
+            error_log('UserModel updateProfile error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Cập nhật avatar.
+     */
+    public function updateAvatar(int $id, ?string $avatarPath): bool
+    {
+        try {
+            $sql = "UPDATE {$this->table} SET avatar = :avatar WHERE id = :id AND deleted_at IS NULL";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':avatar', $avatarPath);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel updateAvatar error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Đổi mật khẩu theo mật khẩu cũ.
+     */
+    public function changePassword(int $id, string $oldPassword, string $newPassword): bool
+    {
+        try {
+            $user = $this->findById($id);
+            if (!$user || !password_verify($oldPassword, $user['password'])) {
+                return false;
+            }
+
+            return $this->updatePassword($id, $newPassword);
+        } catch (Throwable $e) {
+            error_log('UserModel changePassword error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Đặt mật khẩu mới trực tiếp.
+     */
+    public function updatePassword(int $id, string $newPassword): bool
+    {
+        try {
+            $sql = "UPDATE {$this->table} SET password = :password, updated_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':password', password_hash($newPassword, PASSWORD_DEFAULT));
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel updatePassword error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function verifyEmail(int $id): bool
+    {
+        try {
+            $sql = "UPDATE {$this->table}
+                    SET email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :id AND deleted_at IS NULL";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel verifyEmail error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updateAdmin(int $id, array $data): bool
+    {
+        try {
+            $sql = "UPDATE {$this->table}
+                    SET full_name = :full_name,
+                        email = :email,
+                        phone = :phone,
+                        address = :address,
+                        role = :role,
+                        status = :status,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :id AND deleted_at IS NULL";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':full_name', trim($data['full_name'] ?? ''));
+            $stmt->bindValue(':email', strtolower(trim($data['email'] ?? '')));
+            $stmt->bindValue(':phone', trim($data['phone'] ?? ''));
+            $stmt->bindValue(':address', trim($data['address'] ?? ''));
+            $stmt->bindValue(':role', $data['role'] ?? 'customer');
+            $stmt->bindValue(':status', $data['status'] ?? 'active');
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel updateAdmin error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function lockUser(int $id): bool
+    {
+        return $this->setStatus($id, 'locked');
+    }
+
+    public function unlockUser(int $id): bool
+    {
+        return $this->setStatus($id, 'active');
+    }
+
+    public function setStatus(int $id, string $status): bool
+    {
+        try {
+            $sql = "UPDATE {$this->table} SET status = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':status', $status);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel setStatus error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function softDelete(int $id): bool
+    {
+        try {
+            $sql = "UPDATE {$this->table} SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel softDelete error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function hardDelete(int $id): bool
+    {
+        try {
+            $stmt = $this->conn->prepare("DELETE FROM {$this->table} WHERE id = :id");
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel hardDelete error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function emailExists(string $email, ?int $ignoreId = null): bool
+    {
+        try {
+            $sql = "SELECT COUNT(*) FROM {$this->table} WHERE email = :email AND deleted_at IS NULL";
+            if ($ignoreId !== null) {
+                $sql .= " AND id <> :ignore_id";
+            }
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':email', strtolower(trim($email)));
+            if ($ignoreId !== null) {
+                $stmt->bindValue(':ignore_id', $ignoreId, PDO::PARAM_INT);
+            }
+            $stmt->execute();
+
+            return (int) $stmt->fetchColumn() > 0;
+        } catch (PDOException $e) {
+            error_log('UserModel emailExists error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Reset password token.
+     */
+    public function createPasswordResetToken(int $userId, string $email, string $selector, string $tokenHash, string $expiresAt): bool
+    {
+        try {
+            $this->conn->prepare("DELETE FROM password_resets WHERE email = :email")
+                ->execute([':email' => strtolower(trim($email))]);
+
+            $sql = "INSERT INTO password_resets (user_id, email, selector, token_hash, expires_at, used_at, created_at)
+                    VALUES (:user_id, :email, :selector, :token_hash, :expires_at, NULL, CURRENT_TIMESTAMP)";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+            $stmt->bindValue(':email', strtolower(trim($email)));
+            $stmt->bindValue(':selector', $selector);
+            $stmt->bindValue(':token_hash', $tokenHash);
+            $stmt->bindValue(':expires_at', $expiresAt);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel createPasswordResetToken error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function findPasswordResetBySelector(string $selector)
+    {
+        try {
+            $sql = "SELECT * FROM password_resets WHERE selector = :selector LIMIT 1";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':selector', $selector);
+            $stmt->execute();
+
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: false;
+        } catch (PDOException $e) {
+            error_log('UserModel findPasswordResetBySelector error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function markPasswordResetUsed(int $id): bool
+    {
+        try {
+            $stmt = $this->conn->prepare("UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = :id");
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel markPasswordResetUsed error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function createEmailVerificationToken(int $userId, string $email, string $selector, string $tokenHash, string $expiresAt): bool
+    {
+        try {
+            $this->conn->prepare("DELETE FROM email_verification_tokens WHERE user_id = :user_id")
+                ->execute([':user_id' => $userId]);
+
+            $sql = "INSERT INTO email_verification_tokens (user_id, email, selector, token_hash, expires_at, verified_at, created_at)
+                    VALUES (:user_id, :email, :selector, :token_hash, :expires_at, NULL, CURRENT_TIMESTAMP)";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+            $stmt->bindValue(':email', strtolower(trim($email)));
+            $stmt->bindValue(':selector', $selector);
+            $stmt->bindValue(':token_hash', $tokenHash);
+            $stmt->bindValue(':expires_at', $expiresAt);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel createEmailVerificationToken error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function findEmailVerificationBySelector(string $selector)
+    {
+        try {
+            $sql = "SELECT * FROM email_verification_tokens WHERE selector = :selector LIMIT 1";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':selector', $selector);
+            $stmt->execute();
+
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: false;
+        } catch (PDOException $e) {
+            error_log('UserModel findEmailVerificationBySelector error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function markEmailVerificationUsed(int $id): bool
+    {
+        try {
+            $stmt = $this->conn->prepare("UPDATE email_verification_tokens SET verified_at = CURRENT_TIMESTAMP WHERE id = :id");
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel markEmailVerificationUsed error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function createRememberToken(int $userId, string $selector, string $tokenHash, string $expiresAt): bool
+    {
+        try {
+            $sql = "INSERT INTO remember_tokens (user_id, selector, token_hash, expires_at, revoked_at, created_at, last_used_at)
+                    VALUES (:user_id, :selector, :token_hash, :expires_at, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+            $stmt->bindValue(':selector', $selector);
+            $stmt->bindValue(':token_hash', $tokenHash);
+            $stmt->bindValue(':expires_at', $expiresAt);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel createRememberToken error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function findRememberTokenBySelector(string $selector)
+    {
+        try {
+            $sql = "SELECT * FROM remember_tokens WHERE selector = :selector LIMIT 1";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':selector', $selector);
+            $stmt->execute();
+
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: false;
+        } catch (PDOException $e) {
+            error_log('UserModel findRememberTokenBySelector error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function revokeRememberToken(int $id): bool
+    {
+        try {
+            $stmt = $this->conn->prepare("UPDATE remember_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE id = :id");
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel revokeRememberToken error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function revokeRememberTokenByUserId(int $userId): bool
+    {
+        try {
+            $stmt = $this->conn->prepare("UPDATE remember_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = :user_id AND revoked_at IS NULL");
+            $stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel revokeRememberTokenByUserId error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function updateRememberToken(int $id, string $selector, string $tokenHash, string $expiresAt): bool
+    {
+        try {
+            $sql = "UPDATE remember_tokens
+                    SET selector = :selector,
+                        token_hash = :token_hash,
+                        expires_at = :expires_at,
+                        last_used_at = CURRENT_TIMESTAMP
+                    WHERE id = :id";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':selector', $selector);
+            $stmt->bindValue(':token_hash', $tokenHash);
+            $stmt->bindValue(':expires_at', $expiresAt);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log('UserModel updateRememberToken error: ' . $e->getMessage());
             return false;
         }
     }
 }
-?>

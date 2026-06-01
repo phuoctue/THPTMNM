@@ -1,93 +1,85 @@
 <?php
 /**
- * ProfileController.php - Controller quản lý hồ sơ người dùng
- * Xử lý: Xem profile, Sửa profile, Đổi mật khẩu, Đơn hàng
+ * ProfileController.php
+ * Quản lý hồ sơ cá nhân, thay đổi mật khẩu và các thao tác của người dùng đã đăng nhập.
  */
 
 require_once 'app/libs/AuthHelper.php';
+require_once 'app/config/database.php';
 require_once 'app/models/UserModel.php';
+require_once 'app/models/CartModel.php';
 
-class ProfileController {
-    private $userModel;
+class ProfileController
+{
+    private UserModel $userModel;
+    private CartModel $cartModel;
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->userModel = new UserModel();
+        $db = (new Database())->getConnection();
+        $this->cartModel = new CartModel($db);
     }
 
-    // ================================================================
-    // XEM PROFILE - TRANG CỬ NHÂN
-    // ================================================================
-    /**
-     * Hiển thị trang hồ sơ cá nhân
-     */
-    public function index() {
-        // ✅ YÊU CẦU PHẢI ĐĂNG NHẬP
+    public function index(): void
+    {
         AuthHelper::requireLogin();
 
         $user = AuthHelper::getCurrentUser();
-        $userDetails = $this->userModel->findById($user['id']);
+        $userDetails = $this->userModel->findById((int) $user['id']);
+        $flash = $this->consumeFlash();
 
-        include 'app/views/profile/index.php';
+        $errors = $flash['errors'];
+        $success = $flash['success'];
+
+        include 'app/views/profile.php';
     }
 
-    // ================================================================
-    // CHỈNH SỬA PROFILE
-    // ================================================================
-    /**
-     * Hiển thị form chỉnh sửa profile và xử lý submit
-     */
-    public function edit() {
-        // ✅ YÊU CẦU PHẢI ĐĂNG NHẬP
+    public function edit(): void
+    {
         AuthHelper::requireLogin();
+        AuthHelper::requireVerifiedEmail();
 
         $user = AuthHelper::getCurrentUser();
-        $userDetails = $this->userModel->findById($user['id']);
-        $oldData = $_SESSION['old_data'] ?? [];
-        $errors = $_SESSION['errors'] ?? [];
-        $success = $_SESSION['success'] ?? '';
-        unset($_SESSION['old_data']);
-        unset($_SESSION['errors']);
-        unset($_SESSION['success']);
+        $userDetails = $this->userModel->findById((int) $user['id']);
 
-        // Xử lý form khi submit
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $this->handleEditProfile($user['id']);
+            $this->handleEdit((int) $user['id'], $userDetails);
         }
+
+        $flash = $this->consumeFlash();
+        $oldData = $flash['old_data'];
+        $errors = $flash['errors'];
+        $success = $flash['success'];
 
         include 'app/views/profile/edit.php';
     }
 
-    /**
-     * XỬ LÝ LOGIC CẬP NHẬT PROFILE
-     */
-    private function handleEditProfile($userId) {
-        $full_name = $_POST['full_name'] ?? '';
-        $phone = $_POST['phone'] ?? '';
-        $address = $_POST['address'] ?? '';
+    private function handleEdit(int $userId, array $userDetails): void
+    {
+        $fullName = trim($_POST['full_name'] ?? '');
+        $phone = trim($_POST['phone'] ?? '');
+        $address = trim($_POST['address'] ?? '');
         $errors = [];
 
-        // VALIDATION
-
-        // 1. Kiểm tra họ tên không để trống
-        if (empty($full_name)) {
-            $errors[] = "Vui lòng nhập họ và tên";
+        if ($fullName === '') {
+            $errors[] = 'Vui lòng nhập họ và tên';
+        }
+        $nameLength = function_exists('mb_strlen') ? mb_strlen($fullName) : strlen($fullName);
+        if ($fullName !== '' && $nameLength > 100) {
+            $errors[] = 'Họ và tên không được vượt quá 100 ký tự';
+        }
+        if ($phone !== '') {
+            $normalizedPhone = preg_replace('/[\s\-\(\)]/', '', $phone);
+            if (!preg_match('/^(?:\+?[0-9]{7,15}|0[0-9]{8,10})$/', $normalizedPhone)) {
+                $errors[] = 'Số điện thoại không hợp lệ';
+            }
         }
 
-        // 2. Kiểm tra độ dài họ tên
-        if (!empty($full_name) && strlen($full_name) > 100) {
-            $errors[] = "Họ và tên không được vượt quá 100 ký tự";
-        }
-
-        // 3. Kiểm tra số điện thoại (nếu có)
-        if (!empty($phone) && !preg_match('/^[0-9\s\-\+\(\)]{7,20}$/', $phone)) {
-            $errors[] = "Số điện thoại không hợp lệ";
-        }
-
-        // Nếu có lỗi
         if (!empty($errors)) {
             $_SESSION['errors'] = $errors;
             $_SESSION['old_data'] = [
-                'full_name' => $full_name,
+                'full_name' => $fullName,
                 'phone' => $phone,
                 'address' => $address,
             ];
@@ -95,173 +87,191 @@ class ProfileController {
             exit;
         }
 
-        // CẬP NHẬT DATABASE
-        $data = [
-            'full_name' => $full_name,
+        $updatedAvatar = $userDetails['avatar'] ?? null;
+
+        if (!$this->userModel->updateProfile($userId, [
+            'full_name' => $fullName,
             'phone' => $phone,
-            'address' => $address
-        ];
-
-        if ($this->userModel->update($userId, $data)) {
-            // Cập nhật session với tên mới
-            $_SESSION['user_name'] = $full_name;
-
-            $_SESSION['success'] = "✅ Cập nhật hồ sơ thành công!";
-            header('Location: /profile');
-            exit;
-        } else {
-            $_SESSION['errors'] = ["Cập nhật thất bại. Vui lòng thử lại."];
+            'address' => $address,
+        ])) {
+            $_SESSION['errors'] = ['Cập nhật hồ sơ thất bại, vui lòng thử lại'];
             header('Location: /profile/edit');
             exit;
         }
-    }
 
-    // ================================================================
-    // ĐỔI MẬT KHẨU
-    // ================================================================
-    /**
-     * Hiển thị form đổi mật khẩu và xử lý submit
-     */
-    public function changePassword() {
-        // ✅ YÊU CẦU PHẢI ĐĂNG NHẬP
-        AuthHelper::requireLogin();
-
-        $user = AuthHelper::getCurrentUser();
-        $errors = $_SESSION['errors'] ?? [];
-        $success = $_SESSION['success'] ?? '';
-        unset($_SESSION['errors']);
-        unset($_SESSION['success']);
-
-        // Xử lý form khi submit
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $this->handleChangePassword($user['id']);
+        if (!empty($_FILES['avatar']['name'])) {
+            $uploadResult = $this->handleAvatarUpload($userId, $userDetails);
+            if ($uploadResult !== true) {
+                $_SESSION['errors'] = [$uploadResult];
+                header('Location: /profile/edit');
+                exit;
+            }
+            if (is_array($uploadResult) && !empty($uploadResult['avatar'])) {
+                $updatedAvatar = $uploadResult['avatar'];
+            }
         }
 
-        include 'app/views/profile/change-password.php';
+        AuthHelper::setUserSession(array_merge($userDetails, [
+            'full_name' => $fullName,
+            'phone' => $phone,
+            'address' => $address,
+            'avatar' => $updatedAvatar,
+        ]));
+
+        $_SESSION['success'] = 'Cập nhật hồ sơ thành công.';
+        header('Location: /profile');
+        exit;
     }
 
-    /**
-     * XỬ LÝ LOGIC ĐỔI MẬT KHẨU
-     */
-    private function handleChangePassword($userId) {
+    public function changePassword(): void
+    {
+        AuthHelper::requireLogin();
+        AuthHelper::requireVerifiedEmail();
+
+        $user = AuthHelper::getCurrentUser();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleChangePassword((int) $user['id']);
+        }
+
+        $flash = $this->consumeFlash();
+        $errors = $flash['errors'];
+        $success = $flash['success'];
+
+        include 'app/views/change_password.php';
+    }
+
+    private function handleChangePassword(int $userId): void
+    {
         $oldPassword = $_POST['old_password'] ?? '';
         $newPassword = $_POST['new_password'] ?? '';
         $confirmPassword = $_POST['confirm_password'] ?? '';
         $errors = [];
 
-        // VALIDATION
-
-        // 1. Kiểm tra không để trống
-        if (empty($oldPassword)) {
-            $errors[] = "Vui lòng nhập mật khẩu cũ";
+        if ($oldPassword === '') {
+            $errors[] = 'Vui lòng nhập mật khẩu cũ';
         }
-        if (empty($newPassword)) {
-            $errors[] = "Vui lòng nhập mật khẩu mới";
+        if ($newPassword === '') {
+            $errors[] = 'Vui lòng nhập mật khẩu mới';
         }
-        if (empty($confirmPassword)) {
-            $errors[] = "Vui lòng xác nhận mật khẩu mới";
+        if ($confirmPassword === '') {
+            $errors[] = 'Vui lòng xác nhận mật khẩu mới';
         }
-
-        // 2. Kiểm tra độ dài mật khẩu mới
-        if (!empty($newPassword) && strlen($newPassword) < 6) {
-            $errors[] = "Mật khẩu mới phải có ít nhất 6 ký tự";
+        if ($newPassword !== '' && strlen($newPassword) < 8) {
+            $errors[] = 'Mật khẩu mới phải có ít nhất 8 ký tự';
         }
-
-        // 3. Kiểm tra mật khẩu mới trùng khớp
-        if (!empty($newPassword) && $newPassword !== $confirmPassword) {
-            $errors[] = "Mật khẩu xác nhận không trùng khớp";
+        if ($newPassword !== '' && $newPassword !== $confirmPassword) {
+            $errors[] = 'Mật khẩu xác nhận không trùng khớp';
+        }
+        if ($oldPassword !== '' && $newPassword !== '' && $oldPassword === $newPassword) {
+            $errors[] = 'Mật khẩu mới phải khác mật khẩu cũ';
         }
 
-        // 4. Kiểm tra mật khẩu mới không giống mật khẩu cũ
-        if (!empty($oldPassword) && !empty($newPassword) && $oldPassword === $newPassword) {
-            $errors[] = "Mật khẩu mới phải khác mật khẩu cũ";
-        }
-
-        // Nếu có lỗi validation
         if (!empty($errors)) {
             $_SESSION['errors'] = $errors;
             header('Location: /profile/changePassword');
             exit;
         }
 
-        // ĐỔI MẬT KHẨU
-        if ($this->userModel->changePassword($userId, $oldPassword, $newPassword)) {
-            // Đổi thành công
-            $successMessage = "✅ Đổi mật khẩu thành công! Vui lòng đăng nhập lại.";
-
-            // Xóa dữ liệu đăng nhập cũ, giữ lại flash message cho màn hình login
-            $_SESSION = [];
-            $_SESSION['success'] = $successMessage;
-            session_regenerate_id(true);
-
-            // Chuyển sang trang đăng nhập để user login lại
-            header('Location: /auth/login');
-            exit;
-        } else {
-            // Đổi thất bại - có thể password cũ sai
-            $_SESSION['errors'] = ["Mật khẩu cũ không chính xác hoặc có lỗi hệ thống"];
+        if (!$this->userModel->changePassword($userId, $oldPassword, $newPassword)) {
+            $_SESSION['errors'] = ['Mật khẩu cũ không chính xác hoặc hệ thống đang gặp lỗi'];
             header('Location: /profile/changePassword');
             exit;
         }
+
+        $this->userModel->revokeRememberTokenByUserId($userId);
+        $_SESSION = [];
+        session_regenerate_id(true);
+        $_SESSION['success'] = 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại.';
+        header('Location: /auth/login');
+        exit;
     }
 
-    // ================================================================
-    // ĐƠN HÀNG
-    // ================================================================
-    /**
-     * Xem danh sách đơn hàng của người dùng
-     */
-    public function orders() {
-        // ✅ YÊU CẦU PHẢI ĐĂNG NHẬP
+    public function orders(): void
+    {
         AuthHelper::requireLogin();
+        AuthHelper::requireVerifiedEmail();
 
         $user = AuthHelper::getCurrentUser();
-        
-        // TODO: Lấy danh sách đơn hàng từ OrderModel
-        // $orderModel = new OrderModel();
-        // $orders = $orderModel->findByUserId($user['id']);
+        $orders = $this->cartModel->getOrdersByCustomerEmail((string) ($user['email'] ?? ''));
+        $flash = $this->consumeFlash();
+        $errors = $flash['errors'];
+        $success = $flash['success'];
 
         include 'app/views/profile/orders.php';
     }
 
-    // ================================================================
-    // QUẢN LÝ USERS (CHỈ ADMIN)
-    // ================================================================
-    /**
-     * Xem danh sách tất cả users (admin only)
-     */
-    public function allUsers() {
-        // ✅ YÊU CẦU PHẢI LÀ ADMIN
-        AuthHelper::requireAdmin();
+    private function handleAvatarUpload(int $userId, array $userDetails)
+    {
+        if (empty($_FILES['avatar']) || $_FILES['avatar']['error'] === UPLOAD_ERR_NO_FILE) {
+            return true;
+        }
 
-        $users = $this->userModel->getAll();
+        $file = $_FILES['avatar'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            return 'Tải ảnh đại diện thất bại';
+        }
+        if ($file['size'] > 2 * 1024 * 1024) {
+            return 'Ảnh đại diện không được vượt quá 2MB';
+        }
 
-        include 'app/views/admin/users.php';
+        $allowedMime = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+        ];
+
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->file($file['tmp_name']);
+        if (!isset($allowedMime[$mimeType])) {
+            return 'Chỉ chấp nhận file ảnh JPG, PNG hoặc WEBP';
+        }
+
+        $uploadDir = __DIR__ . '/../../uploads/avatars';
+        if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) {
+            return 'Không thể tạo thư mục upload';
+        }
+
+        $ext = $allowedMime[$mimeType];
+        $filename = 'avatar_' . $userId . '_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+        $targetPath = $uploadDir . '/' . $filename;
+
+        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            return 'Không thể lưu ảnh đại diện';
+        }
+
+        $relativePath = 'uploads/avatars/' . $filename;
+        if (!$this->userModel->updateAvatar($userId, $relativePath)) {
+            @unlink($targetPath);
+            return 'Không thể cập nhật avatar trong cơ sở dữ liệu';
+        }
+
+        $oldAvatar = $userDetails['avatar'] ?? null;
+        if (!empty($oldAvatar)) {
+            $oldFile = __DIR__ . '/../../' . ltrim($oldAvatar, '/');
+            if (is_file($oldFile)) {
+                @unlink($oldFile);
+            }
+        }
+
+        AuthHelper::bootstrapSession();
+        $_SESSION['user_avatar'] = $relativePath;
+
+        return [
+            'avatar' => $relativePath,
+        ];
     }
 
-    /**
-     * Xóa user (admin only)
-     */
-    public function deleteUser($id) {
-        // ✅ YÊU CẦU PHẢI LÀ ADMIN
-        AuthHelper::requireAdmin();
+    private function consumeFlash(): array
+    {
+        $flash = [
+            'errors' => $_SESSION['errors'] ?? [],
+            'success' => $_SESSION['success'] ?? '',
+            'old_data' => $_SESSION['old_data'] ?? [],
+        ];
 
-        // Không cho admin xóa chính mình
-        if ($id == AuthHelper::getUserId()) {
-            $_SESSION['errors'] = ["Không thể xóa chính mình"];
-            header('Location: /profile/allUsers');
-            exit;
-        }
+        unset($_SESSION['errors'], $_SESSION['success'], $_SESSION['old_data']);
 
-        if ($this->userModel->delete($id)) {
-            $_SESSION['success'] = "Đã xóa người dùng";
-        } else {
-            $_SESSION['errors'] = ["Xóa thất bại"];
-        }
-
-        header('Location: /profile/allUsers');
-        exit;
+        return $flash;
     }
 }
-?>
-

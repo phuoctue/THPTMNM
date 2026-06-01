@@ -43,17 +43,14 @@
         <div id="cartToastHeader" class="toast-header bg-success text-white">
             <i class="fas fa-check-circle mr-2"></i>
             <strong class="mr-auto" id="cartToastTitle">Thông báo</strong>
-            <button type="button" class="ml-2 mb-1 close text-white" data-dismiss="toast" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
+            <button type="button" class="btn-close btn-close-white ms-2 mb-1" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
         <div class="toast-body" id="cartToastBody">Đã thêm vào giỏ hàng!</div>
     </div>
 </div>
 
 <!-- Scripts -->
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (function () {
     function setupAdminSidebar() {
@@ -107,8 +104,9 @@
             header.classList.add(type === 'error' ? 'bg-danger' : 'bg-success');
         }
         if (title) title.textContent = type === 'error' ? 'Lỗi' : 'Thông báo';
-        if (window.jQuery && $('#cartToast').toast) {
-            $('#cartToast').toast('show');
+        var toastEl = document.getElementById('cartToast');
+        if (toastEl && window.bootstrap && bootstrap.Toast) {
+            bootstrap.Toast.getOrCreateInstance(toastEl).show();
         }
     }
 
