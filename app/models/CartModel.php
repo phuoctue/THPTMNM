@@ -120,6 +120,91 @@ class CartModel {
         return $orderId;
     }
 
+    public function placeOrderFromItems(
+        string $name,
+        string $phone,
+        string $email,
+        string $address,
+        string $note = '',
+        string $paymentMethod = 'cod',
+        array $items = []
+    ): int|false {
+        $normalizedItems = $this->normalizeOrderItems($items);
+        if (empty($normalizedItems)) {
+            return false;
+        }
+
+        $total = 0;
+        $resolvedItems = [];
+
+        try {
+            foreach ($normalizedItems as $item) {
+                $product = $this->findProductSnapshot((int) $item['product_id']);
+                if (!$product) {
+                    return false;
+                }
+
+                $quantity = max(1, (int) $item['quantity']);
+                $price = (int) $product['price'];
+                $image = $item['image'] ?? ($product['image'] ?? '');
+                $nameSnapshot = trim((string) ($item['name'] ?? $product['name']));
+
+                $resolvedItems[] = [
+                    'product_id' => (int) $product['id'],
+                    'name' => $nameSnapshot,
+                    'price' => $price,
+                    'quantity' => $quantity,
+                    'image' => (string) $image,
+                ];
+
+                $total += $price * $quantity;
+            }
+
+            $this->conn->beginTransaction();
+
+            $paymentStatus = $paymentMethod === 'banking' ? 'paid' : 'unpaid';
+            $stmt = $this->conn->prepare(
+                "INSERT INTO orders (customer_name, customer_phone, customer_email, customer_address, note, total_price, payment_method, payment_status)
+                 VALUES (:name, :phone, :email, :address, :note, :total, :payment_method, :payment_status)"
+            );
+            $stmt->execute([
+                ':name'           => $name,
+                ':phone'          => $phone,
+                ':email'          => $email !== '' ? $email : null,
+                ':address'        => $address,
+                ':note'           => $note,
+                ':total'          => $total,
+                ':payment_method' => $paymentMethod,
+                ':payment_status' => $paymentStatus,
+            ]);
+
+            $orderId = (int) $this->conn->lastInsertId();
+
+            $stmt2 = $this->conn->prepare(
+                "INSERT INTO order_items (order_id, product_id, name, price, quantity, image)
+                 VALUES (:order_id, :product_id, :name, :price, :quantity, :image)"
+            );
+            foreach ($resolvedItems as $item) {
+                $stmt2->execute([
+                    ':order_id'   => $orderId,
+                    ':product_id' => $item['product_id'],
+                    ':name'       => $item['name'],
+                    ':price'      => $item['price'],
+                    ':quantity'   => $item['quantity'],
+                    ':image'      => $item['image'],
+                ]);
+            }
+
+            $this->conn->commit();
+            return $orderId;
+        } catch (Throwable $e) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            return false;
+        }
+    }
+
     public function getAllOrders(): array {
         $stmt = $this->conn->query("SELECT * FROM orders ORDER BY created_at DESC");
         return $stmt->fetchAll(PDO::FETCH_OBJ);
@@ -181,6 +266,58 @@ class CartModel {
 
         $stmt = $this->conn->prepare("UPDATE orders SET status = :status WHERE id = :id");
         $stmt->execute([':status' => $status, ':id' => $id]);
+    }
+
+    public function updateOrderPaymentStatus(int $id, string $paymentStatus): bool
+    {
+        $allowed = ['unpaid', 'paid'];
+        if (!in_array($paymentStatus, $allowed, true)) {
+            return false;
+        }
+
+        $stmt = $this->conn->prepare("UPDATE orders SET payment_status = :payment_status WHERE id = :id");
+        return $stmt->execute([':payment_status' => $paymentStatus, ':id' => $id]);
+    }
+
+    public function deleteOrder(int $id): bool
+    {
+        $stmt = $this->conn->prepare("DELETE FROM orders WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
+
+    private function normalizeOrderItems(array $items): array
+    {
+        $normalized = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $productId = (int) ($item['product_id'] ?? 0);
+            $quantity = (int) ($item['quantity'] ?? 0);
+            if ($productId <= 0 || $quantity <= 0) {
+                continue;
+            }
+
+            $normalized[] = [
+                'product_id' => $productId,
+                'quantity' => $quantity,
+                'name' => $item['name'] ?? null,
+                'price' => $item['price'] ?? null,
+                'image' => $item['image'] ?? null,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function findProductSnapshot(int $productId): array|false
+    {
+        $stmt = $this->conn->prepare("SELECT id, name, price, image FROM product WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $productId]);
+        $product = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $product ?: false;
     }
 }
 ?>

@@ -13,7 +13,7 @@ class ProductModel {
             $where = "WHERE p.name LIKE :search OR p.description LIKE :search";
         }
 
-        $query = "SELECT p.id, p.name, p.description, p.price, p.image,
+        $query = "SELECT p.id, p.name, p.description, p.price, p.category_id, p.image,
                          c.name as category_name
                   FROM " . $this->table_name . " p
                   LEFT JOIN category c ON p.category_id = c.id
