@@ -275,6 +275,11 @@ class CartModel {
             return false;
         }
 
+        $current = $this->getOrderById($id);
+        if (!$current || ($current->payment_status ?? 'unpaid') === 'paid') {
+            return false;
+        }
+
         $stmt = $this->conn->prepare("UPDATE orders SET payment_status = :payment_status WHERE id = :id");
         return $stmt->execute([':payment_status' => $paymentStatus, ':id' => $id]);
     }

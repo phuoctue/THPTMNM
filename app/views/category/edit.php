@@ -1,52 +1,54 @@
 <?php
-require_once 'app/libs/ViewHelper.php';
-$errors = isset($error) ? [$error] : [];
-$success = '';
+$categoryId = isset($categoryId) ? (int) $categoryId : (int) ($_GET['id'] ?? 0);
 ?>
-
 <?php include 'app/views/shares/header.php'; ?>
 
 <style>
-.form-card { background:#fff; border-radius:16px; box-shadow:var(--card-shadow); padding:2rem 2.5rem; max-width:560px; margin:0 auto; }
-.form-card h1 { font-size:1.6rem; font-weight:800; color:var(--dark); margin-bottom:1.5rem; }
-.form-card h1 i { color:var(--accent); margin-right:.4rem; }
-.form-group label { font-weight:700; color:#374151; }
-.form-control { border-radius:8px; border:1.5px solid #e5e7eb; font-weight:600; transition:border-color .2s,box-shadow .2s; }
-.form-control:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,.12); }
-.btn-back { background:#f3f4f6; color:#374151; border:none; }
-.btn-back:hover { background:#e5e7eb; }
+    .form-shell {
+        max-width: 680px;
+        margin: 0 auto;
+        background: rgba(255,255,255,.78);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,.55);
+        border-radius: 24px;
+        box-shadow: var(--card-shadow);
+        padding: 1.5rem;
+    }
+    .form-shell .form-control,
+    .form-shell .btn {
+        border-radius: 12px;
+    }
 </style>
 
-<div class="form-card">
-    <h1><i class="fas fa-edit"></i> Sửa danh mục</h1>
-
-    <?php require 'app/views/shares/flash.php'; ?>
-
-    <form method="POST" action="/Category/update">
-
-        <input type="hidden" name="id" value="<?php echo $category->id; ?>">
-
-        <div class="form-group">
-            <label><i class="fas fa-tag mr-1 text-primary"></i> Tên danh mục</label>
-            <input type="text" name="name" class="form-control"
-                   value="<?php echo htmlspecialchars($category->name); ?>" required>
+<main class="container">
+    <section class="form-shell">
+        <div class="mb-4">
+            <h1 class="h3 fw-black mb-1"><i class="fas fa-edit text-warning me-2"></i>Sửa danh mục</h1>
+            <p class="text-muted mb-0">Cập nhật qua `/api/categories/{id}`.</p>
         </div>
 
-        <div class="form-group">
-            <label><i class="fas fa-align-left mr-1 text-primary"></i> Mô tả</label>
-            <textarea name="description" class="form-control" rows="3"><?php echo htmlspecialchars($category->description ?? ''); ?></textarea>
-        </div>
+        <div id="categoryFormAlert" class="alert d-none" role="alert"></div>
 
-        <div class="d-flex mt-3" style="gap:.75rem">
-            <button type="submit" class="btn btn-warning px-4">
-                <i class="fas fa-save mr-1"></i> Cập nhật
-            </button>
-            <a href="/Category" class="btn btn-back px-4">
-                <i class="fas fa-arrow-left mr-1"></i> Quay lại
-            </a>
-        </div>
+        <form id="adminCategoryForm" data-category-id="<?php echo (int) $categoryId; ?>">
+            <div class="mb-3">
+                <label class="form-label fw-bold">Tên danh mục</label>
+                <input type="text" name="name" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Mô tả</label>
+                <textarea name="description" class="form-control" rows="4"></textarea>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-warning px-4" id="adminCategorySubmitBtn">
+                    <span class="btn-label">Cập nhật danh mục</span>
+                    <span class="spinner-border spinner-border-sm d-none ms-2" aria-hidden="true"></span>
+                </button>
+                <a href="/Category" class="btn btn-outline-secondary px-4">Quay lại</a>
+            </div>
+        </form>
+    </section>
+</main>
 
-    </form>
-</div>
+<script src="/assets/js/frontend/pages/admin/category-form.js" defer></script>
 
 <?php include 'app/views/shares/footer.php'; ?>

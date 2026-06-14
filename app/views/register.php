@@ -1,10 +1,3 @@
-<?php
-require_once 'app/libs/ViewHelper.php';
-$flash = ViewHelper::consumeFlash();
-$old_data = $old_data ?? $flash['old_data'];
-$errors = $errors ?? $flash['errors'];
-$success = $success ?? $flash['success'];
-?>
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -13,7 +6,7 @@ $success = $success ?? $flash['success'];
     <title>Đăng ký - My Store</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Nunito', sans-serif;
@@ -39,7 +32,7 @@ $success = $success ?? $flash['success'];
             background: linear-gradient(160deg, #7c3aed 0%, #2563eb 50%, #0f172a 100%);
         }
         .auth-aside h1 {
-            font-weight: 800;
+            font-weight: 900;
             font-size: clamp(2rem, 4vw, 3rem);
             margin-bottom: 18px;
         }
@@ -79,10 +72,10 @@ $success = $success ?? $flash['success'];
         <div>
             <div class="badge text-bg-warning text-dark mb-3">My Store</div>
             <h1>Tạo tài khoản mới</h1>
-            <p class="mb-0">Sau khi đăng ký, bạn sẽ nhận email xác thực và có thể quản lý hồ sơ, đổi mật khẩu, đặt lại mật khẩu an toàn.</p>
+            <p class="mb-0">Sau khi đăng ký, bạn có thể đăng nhập ngay bằng API và quản lý tài khoản, giỏ hàng, đơn hàng.</p>
         </div>
         <div class="mt-5 small text-white-50">
-            <i class="fas fa-envelope me-1"></i> Email verification được bật mặc định.
+            <i class="fas fa-envelope me-1"></i> Xác thực email được hỗ trợ ở backend.
         </div>
     </div>
 
@@ -90,17 +83,17 @@ $success = $success ?? $flash['success'];
         <h2 class="fw-bold mb-2">Đăng ký</h2>
         <p class="text-muted mb-4">Tạo tài khoản khách hàng mới.</p>
 
-        <?php require 'app/views/shares/flash.php'; ?>
+        <div id="authAlert" class="alert d-none" role="alert"></div>
 
-        <form method="POST" action="/auth/register">
+        <form id="registerForm" autocomplete="off">
             <div class="mb-3">
                 <label class="form-label fw-bold">Họ và tên</label>
-                <input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($old_data['full_name'] ?? ''); ?>" required>
+                <input type="text" name="full_name" class="form-control" required>
             </div>
 
             <div class="mb-3">
                 <label class="form-label fw-bold">Email</label>
-                <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($old_data['email'] ?? ''); ?>" required>
+                <input type="email" name="email" class="form-control" required>
             </div>
 
             <div class="row g-3">
@@ -108,29 +101,32 @@ $success = $success ?? $flash['success'];
                     <label class="form-label fw-bold">Mật khẩu</label>
                     <div class="input-group">
                         <input type="password" name="password" id="register_password" class="form-control" required>
-                        <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('register_password')"><i class="fas fa-eye"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" data-toggle-password="#register_password"><i class="fas fa-eye"></i></button>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-bold">Xác nhận mật khẩu</label>
                     <div class="input-group">
                         <input type="password" name="confirm_password" id="register_confirm_password" class="form-control" required>
-                        <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('register_confirm_password')"><i class="fas fa-eye"></i></button>
+                        <button type="button" class="btn btn-outline-secondary" data-toggle-password="#register_confirm_password"><i class="fas fa-eye"></i></button>
                     </div>
                 </div>
             </div>
 
             <div class="mt-3 mb-3">
                 <label class="form-label fw-bold">Số điện thoại</label>
-                <input type="tel" name="phone" class="form-control" value="<?php echo htmlspecialchars($old_data['phone'] ?? ''); ?>">
+                <input type="tel" name="phone" class="form-control">
             </div>
 
             <div class="mb-4">
                 <label class="form-label fw-bold">Địa chỉ</label>
-                <textarea name="address" rows="3" class="form-control"><?php echo htmlspecialchars($old_data['address'] ?? ''); ?></textarea>
+                <textarea name="address" rows="3" class="form-control"></textarea>
             </div>
 
-            <button class="btn btn-auth w-100" type="submit">Đăng ký</button>
+            <button class="btn btn-auth w-100" type="submit" id="registerSubmitBtn">
+                <span class="btn-label">Đăng ký</span>
+                <span class="spinner-border spinner-border-sm d-none ms-2" aria-hidden="true"></span>
+            </button>
         </form>
 
         <div class="text-center mt-4">
@@ -140,11 +136,9 @@ $success = $success ?? $flash['success'];
     </div>
 </div>
 
-<script>
-function togglePassword(id) {
-    var field = document.getElementById(id);
-    field.type = field.type === 'password' ? 'text' : 'password';
-}
-</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/assets/js/frontend/core/ui.js"></script>
+<script src="/assets/js/frontend/core/api.js"></script>
+<script src="/assets/js/frontend/pages/auth-page.js"></script>
 </body>
 </html>

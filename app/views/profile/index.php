@@ -1,214 +1,137 @@
-<?php
-// Bảo vệ trang này - chỉ người đã đăng nhập mới vào được
-require_once 'app/libs/AuthHelper.php';
-require_once 'app/libs/ViewHelper.php';
-AuthHelper::requireLogin();
+<?php include 'app/views/shares/header.php'; ?>
 
-$user = AuthHelper::getCurrentUser();
-$userDetails = $userDetails ?? [];
-$flash = ViewHelper::consumeFlash();
-$errors = $errors ?? $flash['errors'];
-$success = $success ?? $flash['success'];
-?>
+<style>
+    .profile-shell {
+        background: rgba(255,255,255,.76);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,.55);
+        border-radius: 24px;
+        box-shadow: var(--card-shadow);
+        overflow: hidden;
+    }
+    .profile-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #fff;
+        padding: 1.25rem 1.5rem;
+    }
+    .profile-card {
+        border-radius: 20px;
+        border: 1px solid rgba(148,163,184,.15);
+        background: #fff;
+        box-shadow: 0 14px 28px rgba(15,23,42,.06);
+    }
+    .profile-avatar {
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    }
+</style>
 
-<?php require_once 'app/views/shares/header.php'; ?>
+<main class="container">
+    <section class="profile-shell">
+        <div class="profile-hero">
+            <h1 class="h3 fw-black mb-1"><i class="fas fa-id-card me-2"></i>Hồ sơ cá nhân</h1>
+            <p class="mb-0 text-white-50">Dữ liệu được tải từ <code>/api/profile</code>.</p>
+        </div>
 
-<div style="margin-top: 20px;">
-    <div class="row">
-        <!-- SIDEBAR PROFILE MENU -->
-        <div class="col-md-3">
-            <div class="card shadow-sm" style="border-radius: 10px; border: none;">
-                <div class="card-body">
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <div style="
-                            width: 80px;
-                            height: 80px;
-                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                            border-radius: 50%;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            color: white;
-                            font-size: 32px;
-                            font-weight: 800;
-                            margin: 0 auto 15px;
-                        ">
-                            <?php echo strtoupper(substr($user['name'], 0, 1)); ?>
+        <div class="p-3 p-md-4">
+            <div id="profileAlert" class="alert d-none" role="alert"></div>
+            <div id="profileLoading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                <div class="mt-3 text-muted">Đang tải thông tin hồ sơ...</div>
+            </div>
+
+            <div id="profileContent" class="d-none">
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <div class="profile-card p-4 h-100">
+                            <div class="text-center">
+                                <img id="profileAvatar" class="profile-avatar mb-3 d-none" alt="Avatar">
+                                <div id="profileAvatarFallback" class="profile-avatar d-inline-flex align-items-center justify-content-center text-white fw-bold mb-3" style="font-size: 2.2rem;">
+                                    U
+                                </div>
+                                <h3 class="h4 fw-bold mb-1" id="profileName">-</h3>
+                                <div class="text-muted mb-3" id="profileEmail">-</div>
+                                <div class="d-flex flex-wrap justify-content-center gap-2">
+                                    <span class="badge text-bg-primary" id="profileRoleBadge">customer</span>
+                                    <span class="badge text-bg-warning" id="profileVerifiedBadge">unverified</span>
+                                </div>
+                            </div>
+
+                            <hr class="my-4">
+
+                            <div class="list-group list-group-flush">
+                                <a href="/profile" class="list-group-item list-group-item-action active"><i class="fas fa-user me-2"></i>Hồ sơ</a>
+                                <a href="/profile/edit" class="list-group-item list-group-item-action"><i class="fas fa-pen me-2"></i>Chỉnh sửa</a>
+                                <a href="/profile/changePassword" class="list-group-item list-group-item-action"><i class="fas fa-lock me-2"></i>Đổi mật khẩu</a>
+                                <a href="/profile/orders" class="list-group-item list-group-item-action"><i class="fas fa-receipt me-2"></i>Đơn hàng</a>
+                            </div>
                         </div>
-                        <h5 style="margin: 0; font-weight: 700;">
-                            <?php echo htmlspecialchars($user['name']); ?>
-                        </h5>
-                        <p style="color: #999; font-size: 0.9rem; margin: 5px 0 0 0;">
-                            <?php echo $user['role'] === 'admin' ? '👑 Admin' : '👤 Khách hàng'; ?>
-                        </p>
                     </div>
 
-                    <hr style="margin: 15px 0;">
+                    <div class="col-lg-8">
+                        <div class="profile-card p-4 h-100">
+                            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                                <div>
+                                    <h2 class="h5 fw-bold mb-1">Thông tin tài khoản</h2>
+                                    <div class="text-muted">Thông tin lấy từ API và cập nhật đồng bộ ngay sau khi thay đổi.</div>
+                                </div>
+                                <a href="/profile/edit" class="btn btn-primary">
+                                    <i class="fas fa-pen me-1"></i>Chỉnh sửa
+                                </a>
+                            </div>
 
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <a href="/profile" class="btn btn-sm" style="
-                            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-                            color: white;
-                            border-radius: 8px;
-                            text-decoration: none;
-                            padding: 10px;
-                            text-align: center;
-                            font-weight: 600;
-                        ">
-                            <i class="fas fa-user"></i> Hồ sơ
-                        </a>
-                        <a href="/profile/edit" class="btn btn-sm" style="
-                            background: #f5f5f5;
-                            color: #333;
-                            border-radius: 8px;
-                            text-decoration: none;
-                            padding: 10px;
-                            text-align: center;
-                            font-weight: 600;
-                            border: 1px solid #ddd;
-                        ">
-                            <i class="fas fa-edit"></i> Chỉnh sửa
-                        </a>
-                        <a href="/profile/changePassword" class="btn btn-sm" style="
-                            background: #f5f5f5;
-                            color: #333;
-                            border-radius: 8px;
-                            text-decoration: none;
-                            padding: 10px;
-                            text-align: center;
-                            font-weight: 600;
-                            border: 1px solid #ddd;
-                        ">
-                            <i class="fas fa-lock"></i> Đổi mật khẩu
-                        </a>
-                        <a href="/profile/orders" class="btn btn-sm" style="
-                            background: #f5f5f5;
-                            color: #333;
-                            border-radius: 8px;
-                            text-decoration: none;
-                            padding: 10px;
-                            text-align: center;
-                            font-weight: 600;
-                            border: 1px solid #ddd;
-                        ">
-                            <i class="fas fa-receipt"></i> Đơn hàng
-                        </a>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded-3 bg-light h-100">
+                                        <div class="text-muted small">Họ và tên</div>
+                                        <div class="fw-semibold" id="profileFullName">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded-3 bg-light h-100">
+                                        <div class="text-muted small">Số điện thoại</div>
+                                        <div class="fw-semibold" id="profilePhone">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded-3 bg-light h-100">
+                                        <div class="text-muted small">Vai trò</div>
+                                        <div class="fw-semibold" id="profileRoleText">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded-3 bg-light h-100">
+                                        <div class="text-muted small">Ngày tạo</div>
+                                        <div class="fw-semibold" id="profileCreatedAt">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="p-3 rounded-3 bg-light">
+                                        <div class="text-muted small">Địa chỉ</div>
+                                        <div class="fw-semibold" id="profileAddress">-</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex flex-wrap gap-2 mt-4">
+                                <a href="/profile/changePassword" class="btn btn-outline-primary">
+                                    <i class="fas fa-lock me-1"></i>Đổi mật khẩu
+                                </a>
+                                <a href="/profile/orders" class="btn btn-outline-secondary">
+                                    <i class="fas fa-receipt me-1"></i>Xem đơn hàng
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+    </section>
+</main>
 
-        <!-- MAIN PROFILE CONTENT -->
-        <div class="col-md-9">
-            <?php require 'app/views/shares/flash.php'; ?>
+<script src="/assets/js/frontend/pages/profile-index.js" defer></script>
 
-            <!-- PROFILE CARD -->
-            <div class="card shadow-sm" style="border-radius: 10px; border: none;">
-                <div class="card-header" style="
-                    background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    border-radius: 10px 10px 0 0;
-                    padding: 20px;
-                    border: none;
-                ">
-                    <h5 style="margin: 0; font-weight: 700;">
-                        <i class="fas fa-id-card"></i> Thông tin cá nhân
-                    </h5>
-                </div>
-
-                <div class="card-body" style="padding: 30px;">
-                    <div class="row">
-                        <div class="col-md-6 mb-4">
-                            <label style="font-weight: 600; color: #666; font-size: 0.9rem;">
-                                📝 Họ và Tên
-                            </label>
-                            <p style="font-size: 1.1rem; color: #333; margin: 5px 0 0 0;">
-                                <?php echo htmlspecialchars($userDetails['full_name'] ?? $user['name']); ?>
-                            </p>
-                        </div>
-
-                        <div class="col-md-6 mb-4">
-                            <label style="font-weight: 600; color: #666; font-size: 0.9rem;">
-                                📧 Email
-                            </label>
-                            <p style="font-size: 1.1rem; color: #333; margin: 5px 0 0 0;">
-                                <?php echo htmlspecialchars($user['email']); ?>
-                            </p>
-                        </div>
-
-                        <div class="col-md-6 mb-4">
-                            <label style="font-weight: 600; color: #666; font-size: 0.9rem;">
-                                📞 Số điện thoại
-                            </label>
-                            <p style="font-size: 1.1rem; color: #333; margin: 5px 0 0 0;">
-                                <?php echo $userDetails['phone'] ? htmlspecialchars($userDetails['phone']) : '<span style="color: #999;">Chưa cập nhật</span>'; ?>
-                            </p>
-                        </div>
-
-                        <div class="col-md-6 mb-4">
-                            <label style="font-weight: 600; color: #666; font-size: 0.9rem;">
-                                🎯 Vai trò
-                            </label>
-                            <p style="font-size: 1.1rem; color: #333; margin: 5px 0 0 0;">
-                                <?php 
-                                if ($userDetails['role'] === 'admin') {
-                                    echo '<span style="background: #ffe5e5; color: #c33; padding: 4px 10px; border-radius: 5px; font-weight: 600;">👑 Admin</span>';
-                                } else {
-                                    echo '<span style="background: #e5f0ff; color: #33c; padding: 4px 10px; border-radius: 5px; font-weight: 600;">👤 Khách hàng</span>';
-                                }
-                                ?>
-                            </p>
-                        </div>
-
-                        <div class="col-12 mb-4">
-                            <label style="font-weight: 600; color: #666; font-size: 0.9rem;">
-                                📍 Địa chỉ
-                            </label>
-                            <p style="font-size: 1rem; color: #333; margin: 5px 0 0 0;">
-                                <?php echo $userDetails['address'] ? htmlspecialchars($userDetails['address']) : '<span style="color: #999;">Chưa cập nhật</span>'; ?>
-                            </p>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label style="font-weight: 600; color: #666; font-size: 0.9rem;">
-                                📅 Ngày tạo tài khoản
-                            </label>
-                            <p style="font-size: 1rem; color: #333; margin: 5px 0 0 0;">
-                                <?php echo date('d/m/Y H:i', strtotime($userDetails['created_at'])); ?>
-                            </p>
-                        </div>
-                    </div>
-
-                    <hr style="margin: 30px 0;">
-
-                    <div style="display: flex; gap: 10px;">
-                        <a href="/profile/edit" class="btn" style="
-                            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-                            color: white;
-                            border: none;
-                            border-radius: 8px;
-                            padding: 10px 20px;
-                            font-weight: 600;
-                            text-decoration: none;
-                        ">
-                            <i class="fas fa-edit"></i> Chỉnh sửa thông tin
-                        </a>
-                        <a href="/profile/changePassword" class="btn" style="
-                            background: #f5f5f5;
-                            color: #333;
-                            border: 1px solid #ddd;
-                            border-radius: 8px;
-                            padding: 10px 20px;
-                            font-weight: 600;
-                            text-decoration: none;
-                        ">
-                            <i class="fas fa-lock"></i> Đổi mật khẩu
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<?php require_once 'app/views/shares/footer.php'; ?>
+<?php include 'app/views/shares/footer.php'; ?>

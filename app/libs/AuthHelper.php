@@ -1,14 +1,15 @@
 <?php
 /**
  * AuthHelper.php
- * Bộ helper dùng chung cho xác thực, phân quyền và session của website.
+ * Helper dùng chung cho xác thực session và JWT.
  */
+
+require_once __DIR__ . '/JwtHelper.php';
 
 class AuthHelper
 {
-    /**
-     * Khởi tạo session cookie an toàn hơn cho toàn hệ thống.
-     */
+    private static ?array $resolvedApiUser = null;
+
     public static function bootstrapSession(): void
     {
         if (session_status() === PHP_SESSION_ACTIVE) {
@@ -28,25 +29,20 @@ class AuthHelper
         session_start();
     }
 
-    /**
-     * Lưu thông tin người dùng vào session sau khi đăng nhập.
-     */
     public static function setUserSession(array $user): void
     {
         $_SESSION['user_id'] = (int) $user['id'];
         $_SESSION['user_email'] = $user['email'] ?? '';
-        $_SESSION['user_name'] = $user['full_name'] ?? '';
+        $_SESSION['user_name'] = $user['full_name'] ?? ($user['name'] ?? '');
         $_SESSION['user_role'] = $user['role'] ?? 'customer';
         $_SESSION['user_status'] = $user['status'] ?? 'active';
         $_SESSION['user_avatar'] = $user['avatar'] ?? null;
         $_SESSION['user_email_verified_at'] = $user['email_verified_at'] ?? null;
     }
 
-    /**
-     * Xóa toàn bộ session người dùng hiện tại.
-     */
     public static function clearUserSession(): void
     {
+        self::$resolvedApiUser = null;
         unset(
             $_SESSION['user_id'],
             $_SESSION['user_email'],
@@ -58,86 +54,109 @@ class AuthHelper
         );
     }
 
-    /**
-     * Kiểm tra người dùng đã đăng nhập chưa.
-     */
     public static function isLoggedIn(): bool
     {
-        return !empty($_SESSION['user_id']) && ($_SESSION['user_status'] ?? 'active') === 'active';
+        $user = self::getCurrentUser();
+        return !empty($user['id']) && ($user['status'] ?? 'active') === 'active';
     }
 
-    /**
-     * Kiểm tra có phải admin hay không.
-     */
     public static function isAdmin(): bool
     {
-        return self::isLoggedIn() && ($_SESSION['user_role'] ?? '') === 'admin';
+        $user = self::getCurrentUser();
+        return !empty($user) && ($user['role'] ?? '') === 'admin' && ($user['status'] ?? 'active') === 'active';
     }
 
-    /**
-     * Kiểm tra email đã xác thực chưa.
-     */
     public static function isEmailVerified(): bool
     {
-        if (!self::isLoggedIn()) {
-            return false;
-        }
-
-        self::syncCurrentUserFromDatabase();
-
-        return !empty($_SESSION['user_email_verified_at']);
+        $user = self::getCurrentUser();
+        return !empty($user) && !empty($user['email_verified_at']);
     }
 
-    /**
-     * Trả về thông tin người dùng hiện tại từ session.
-     */
     public static function getCurrentUser(): ?array
     {
-        if (!self::isLoggedIn()) {
+        if (self::$resolvedApiUser !== null) {
+            return self::$resolvedApiUser;
+        }
+
+        if (!empty($_SESSION['user_id']) && ($_SESSION['user_status'] ?? 'active') === 'active') {
+            self::syncCurrentUserFromDatabase();
+
+            return [
+                'id' => (int) $_SESSION['user_id'],
+                'email' => $_SESSION['user_email'] ?? '',
+                'name' => $_SESSION['user_name'] ?? '',
+                'role' => $_SESSION['user_role'] ?? 'customer',
+                'status' => $_SESSION['user_status'] ?? 'active',
+                'avatar' => $_SESSION['user_avatar'] ?? null,
+                'email_verified_at' => $_SESSION['user_email_verified_at'] ?? null,
+            ];
+        }
+
+        $token = self::extractBearerToken();
+        if ($token === '') {
             return null;
         }
 
-        self::syncCurrentUserFromDatabase();
+        $payload = JwtHelper::decode($token);
+        if (!is_array($payload)) {
+            return null;
+        }
 
-        return [
-            'id' => (int) $_SESSION['user_id'],
-            'email' => $_SESSION['user_email'] ?? '',
-            'name' => $_SESSION['user_name'] ?? '',
-            'role' => $_SESSION['user_role'] ?? 'customer',
-            'status' => $_SESSION['user_status'] ?? 'active',
-            'avatar' => $_SESSION['user_avatar'] ?? null,
-            'email_verified_at' => $_SESSION['user_email_verified_at'] ?? null,
+        $userId = (int) ($payload['sub'] ?? 0);
+        if ($userId <= 0) {
+            return null;
+        }
+
+        require_once 'app/models/UserModel.php';
+        $userModel = new UserModel();
+        $user = $userModel->findById($userId);
+        if (!$user || ($user['status'] ?? 'active') !== 'active' || !empty($user['deleted_at'])) {
+            return null;
+        }
+
+        self::$resolvedApiUser = [
+            'id' => $userId,
+            'email' => (string) ($user['email'] ?? ($payload['email'] ?? '')),
+            'name' => (string) ($user['full_name'] ?? ($payload['name'] ?? '')),
+            'role' => (string) ($user['role'] ?? ($payload['role'] ?? 'customer')),
+            'status' => (string) ($user['status'] ?? ($payload['status'] ?? 'active')),
+            'avatar' => $user['avatar'] ?? ($payload['avatar'] ?? null),
+            'email_verified_at' => $user['email_verified_at'] ?? ($payload['email_verified_at'] ?? null),
         ];
+
+        return self::$resolvedApiUser;
     }
 
     public static function getUserName(): ?string
     {
-        return self::isLoggedIn() ? (string) ($_SESSION['user_name'] ?? '') : null;
+        $user = self::getCurrentUser();
+        return $user['name'] ?? null;
     }
 
     public static function getUserEmail(): ?string
     {
-        return self::isLoggedIn() ? (string) ($_SESSION['user_email'] ?? '') : null;
+        $user = self::getCurrentUser();
+        return $user['email'] ?? null;
     }
 
     public static function getUserId(): ?int
     {
-        return self::isLoggedIn() ? (int) $_SESSION['user_id'] : null;
+        $user = self::getCurrentUser();
+        return isset($user['id']) ? (int) $user['id'] : null;
     }
 
     public static function getUserRole(): ?string
     {
-        return self::isLoggedIn() ? (string) ($_SESSION['user_role'] ?? 'customer') : null;
+        $user = self::getCurrentUser();
+        return $user['role'] ?? null;
     }
 
     public static function getUserAvatar(): ?string
     {
-        return self::isLoggedIn() ? ($_SESSION['user_avatar'] ?? null) : null;
+        $user = self::getCurrentUser();
+        return $user['avatar'] ?? null;
     }
 
-    /**
-     * Yêu cầu đăng nhập. Nếu chưa đăng nhập sẽ chuyển đến trang login.
-     */
     public static function requireLogin(): void
     {
         if (self::isLoggedIn()) {
@@ -157,9 +176,6 @@ class AuthHelper
         exit;
     }
 
-    /**
-     * Yêu cầu quyền admin.
-     */
     public static function requireAdmin(): void
     {
         if (self::isAdmin()) {
@@ -171,9 +187,6 @@ class AuthHelper
         exit;
     }
 
-    /**
-     * Yêu cầu người dùng đã xác thực email.
-     */
     public static function requireVerifiedEmail(): void
     {
         self::requireLogin();
@@ -187,13 +200,9 @@ class AuthHelper
         exit;
     }
 
-    /**
-     * Đồng bộ lại thông tin người dùng từ database để tránh session bị stale.
-     * Dùng khi trạng thái email verify / role / status có thể thay đổi sau khi đăng nhập.
-     */
     private static function syncCurrentUserFromDatabase(): void
     {
-        if (!self::isLoggedIn()) {
+        if (empty($_SESSION['user_id'])) {
             return;
         }
 
@@ -224,9 +233,6 @@ class AuthHelper
         }
     }
 
-    /**
-     * Chuyển hướng tới trang ban đầu sau khi đăng nhập.
-     */
     public static function redirectAfterLogin(): void
     {
         if (!empty($_SESSION['redirect_after_login'])) {
@@ -237,9 +243,6 @@ class AuthHelper
         }
     }
 
-    /**
-     * Auto login từ cookie remember me.
-     */
     public static function restoreRememberMe(): void
     {
         if (self::isLoggedIn() || empty($_COOKIE['remember_me'])) {
@@ -287,6 +290,22 @@ class AuthHelper
 
         session_regenerate_id(true);
         self::setUserSession($user);
+    }
+
+    public static function extractBearerToken(): string
+    {
+        $headers = function_exists('getallheaders') ? getallheaders() : [];
+        $authorization = $headers['Authorization'] ?? $headers['authorization'] ?? ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+
+        if (!is_string($authorization) || $authorization === '') {
+            return '';
+        }
+
+        if (preg_match('/Bearer\s+(.+)/i', $authorization, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return '';
     }
 
     private static function clearInvalidRememberCookie(): void

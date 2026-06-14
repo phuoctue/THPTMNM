@@ -2,7 +2,7 @@
 
 require_once 'app/config/database.php';
 require_once 'app/libs/ApiResponse.php';
-require_once 'app/libs/AuthHelper.php';
+require_once 'app/libs/AuthMiddleware.php';
 require_once 'app/models/UserModel.php';
 require_once 'app/models/CartModel.php';
 
@@ -10,12 +10,13 @@ class ProfileApiController
 {
     private UserModel $userModel;
     private CartModel $cartModel;
+    private PDO $db;
 
     public function __construct()
     {
         $this->userModel = new UserModel();
-        $db = (new Database())->getConnection();
-        $this->cartModel = new CartModel($db);
+        $this->db = (new Database())->getConnection();
+        $this->cartModel = new CartModel($this->db);
     }
 
     public function index(): void
@@ -32,16 +33,17 @@ class ProfileApiController
 
     public function update(): void
     {
-        $user = $this->requireVerifiedUser();
+        $user = $this->requireUser();
         $userDetails = $this->userModel->findById((int) $user['id']);
 
         if (!$userDetails) {
             ApiResponse::error('User not found', null, 404);
         }
 
-        $fullName = trim((string) ($_POST['full_name'] ?? ''));
-        $phone = trim((string) ($_POST['phone'] ?? ''));
-        $address = trim((string) ($_POST['address'] ?? ''));
+        $data = $this->requestData();
+        $fullName = trim((string) ($data['full_name'] ?? ''));
+        $phone = trim((string) ($data['phone'] ?? ''));
+        $address = trim((string) ($data['address'] ?? ''));
 
         $errors = $this->validateProfilePayload($fullName, $phone);
         if (!empty($errors)) {
@@ -64,23 +66,19 @@ class ProfileApiController
         }
 
         $fresh = $this->userModel->findById((int) $user['id']);
-        AuthHelper::setUserSession($fresh ?: array_merge($userDetails, [
-            'full_name' => $fullName,
-            'phone' => $phone,
-            'address' => $address,
-        ]));
 
-        ApiResponse::success('Profile updated successfully');
+        ApiResponse::success('Profile updated successfully', $this->makeUserPayload($fresh ?: $userDetails));
     }
 
     public function changePassword(): void
     {
-        $user = $this->requireVerifiedUser();
+        $user = $this->requireUser();
         $userId = (int) $user['id'];
 
-        $oldPassword = (string) ($_POST['old_password'] ?? '');
-        $newPassword = (string) ($_POST['new_password'] ?? '');
-        $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
+        $data = $this->requestData();
+        $oldPassword = (string) ($data['old_password'] ?? '');
+        $newPassword = (string) ($data['new_password'] ?? '');
+        $confirmPassword = (string) ($data['confirm_password'] ?? '');
 
         $errors = $this->validatePasswordPayload($oldPassword, $newPassword, $confirmPassword);
         if (!empty($errors)) {
@@ -92,15 +90,13 @@ class ProfileApiController
         }
 
         $this->userModel->revokeRememberTokenByUserId($userId);
-        $_SESSION = [];
-        session_regenerate_id(true);
 
         ApiResponse::success('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.');
     }
 
     public function orders(): void
     {
-        $user = $this->requireVerifiedUser();
+        $user = $this->requireUser();
         $orders = $this->cartModel->getOrdersByCustomerEmail((string) ($user['email'] ?? ''));
 
         ApiResponse::success('Orders retrieved successfully', $orders);
@@ -108,26 +104,25 @@ class ProfileApiController
 
     private function requireUser(): array
     {
-        if (!AuthHelper::isLoggedIn()) {
-            ApiResponse::error('Unauthenticated', null, 401);
-        }
-
-        $user = AuthHelper::getCurrentUser();
+        $payload = AuthMiddleware::authenticate();
+        $user = $this->userModel->findById((int) $payload['sub']);
         if (!$user) {
-            ApiResponse::error('Unauthenticated', null, 401);
+            ApiResponse::error('Unauthorized', null, 401);
         }
 
         return $user;
     }
 
-    private function requireVerifiedUser(): array
+    private function requestData(): array
     {
-        $user = $this->requireUser();
-        if (empty($user['email_verified_at'])) {
-            ApiResponse::error('Bạn cần xác thực email trước khi sử dụng chức năng này', null, 403);
+        if (!empty($_POST)) {
+            return $_POST;
         }
 
-        return $user;
+        $raw = file_get_contents('php://input');
+        $json = json_decode($raw, true);
+
+        return is_array($json) ? $json : [];
     }
 
     private function validateProfilePayload(string $fullName, string $phone): array
@@ -243,6 +238,8 @@ class ProfileApiController
             'status' => $user['status'] ?? 'active',
             'avatar' => $user['avatar'] ?? null,
             'email_verified_at' => $user['email_verified_at'] ?? null,
+            'created_at' => $user['created_at'] ?? null,
+            'updated_at' => $user['updated_at'] ?? null,
         ];
     }
 }

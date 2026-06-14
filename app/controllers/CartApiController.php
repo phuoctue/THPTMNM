@@ -24,12 +24,13 @@ class CartApiController
 
     public function store(): void
     {
-        $data = $this->getJsonInput();
-        $productId = (int) ($data['product_id'] ?? $_POST['product_id'] ?? 0);
-        $quantity = max(1, (int) ($data['quantity'] ?? $_POST['quantity'] ?? 1));
+        $data = $this->requestData();
+        $productId = (int) ($data['product_id'] ?? 0);
+        $quantity = (int) ($data['quantity'] ?? 1);
 
-        if ($productId <= 0) {
-            ApiResponse::error('Validation failed', ['product_id' => 'Sản phẩm không hợp lệ'], 422);
+        $errors = $this->validateItem($productId, $quantity);
+        if (!empty($errors)) {
+            ApiResponse::error('Validation failed', $errors, 422);
         }
 
         $product = $this->productModel->getProductById($productId);
@@ -39,9 +40,9 @@ class CartApiController
 
         $this->cartModel->addItem(
             $productId,
-            $product->name,
+            (string) $product->name,
             (int) $product->price,
-            $product->image ?? '',
+            (string) ($product->image ?? ''),
             $quantity
         );
 
@@ -51,16 +52,23 @@ class CartApiController
     public function update($productId): void
     {
         $productId = (int) $productId;
-        $data = $this->getJsonInput();
-        $quantity = (int) ($data['quantity'] ?? $_POST['quantity'] ?? 0);
+        $data = $this->requestData();
+        $quantity = (int) ($data['quantity'] ?? 0);
 
         if ($productId <= 0) {
             ApiResponse::error('Validation failed', ['product_id' => 'Sản phẩm không hợp lệ'], 422);
         }
+        if ($quantity <= 0) {
+            ApiResponse::error('Validation failed', ['quantity' => 'Số lượng sản phẩm phải lớn hơn 0'], 422);
+        }
+
+        if (!$this->productModel->getProductById($productId)) {
+            ApiResponse::error('Product not found', null, 404);
+        }
 
         $this->cartModel->updateQty($productId, $quantity);
 
-        ApiResponse::success('Giỏ hàng đã được cập nhật', $this->cartSummary());
+        ApiResponse::success('Cart updated successfully', $this->cartSummary());
     }
 
     public function destroy($productId): void
@@ -71,30 +79,55 @@ class CartApiController
         }
 
         $this->cartModel->removeItem($productId);
-
-        ApiResponse::success('Đã xóa sản phẩm khỏi giỏ hàng', $this->cartSummary());
+        ApiResponse::success('Item removed successfully', $this->cartSummary());
     }
 
     public function clear(): void
     {
         $this->cartModel->clearCart();
-        ApiResponse::success('Giỏ hàng đã được xóa', $this->cartSummary());
+        ApiResponse::success('Cart cleared successfully', $this->cartSummary());
+    }
+
+    public function total(): void
+    {
+        ApiResponse::success('Cart total retrieved successfully', [
+            'total_qty' => $this->cartModel->getTotalQty(),
+            'total_price' => $this->cartModel->getTotalPrice(),
+        ]);
     }
 
     private function cartSummary(): array
     {
         return [
-            'items' => $this->cartModel->getCart(),
+            'items' => array_values($this->cartModel->getCart()),
             'total_qty' => $this->cartModel->getTotalQty(),
             'total_price' => $this->cartModel->getTotalPrice(),
         ];
     }
 
-    private function getJsonInput(): array
+    private function requestData(): array
     {
-        $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
+        if (!empty($_POST)) {
+            return $_POST;
+        }
 
-        return is_array($data) ? $data : [];
+        $raw = file_get_contents('php://input');
+        $json = json_decode($raw, true);
+
+        return is_array($json) ? $json : [];
+    }
+
+    private function validateItem(int $productId, int $quantity): array
+    {
+        $errors = [];
+
+        if ($productId <= 0) {
+            $errors['product_id'] = 'Sản phẩm không hợp lệ';
+        }
+        if ($quantity <= 0) {
+            $errors['quantity'] = 'Số lượng sản phẩm phải lớn hơn 0';
+        }
+
+        return $errors;
     }
 }

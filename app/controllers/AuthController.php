@@ -224,7 +224,7 @@ class AuthController
         $_SESSION = [];
         session_regenerate_id(true);
         $_SESSION['success'] = 'Đã đăng xuất thành công.';
-        header('Location: /auth/login');
+        header('Location: /');
         exit;
     }
 

@@ -1,219 +1,175 @@
 <?php include 'app/views/shares/header.php'; ?>
 
-<?php
-if (!function_exists('orderStatusBadgeClass')) {
-    function orderStatusBadgeClass(string $status): string
-    {
-        return match ($status) {
-            'confirmed' => 'text-bg-info',
-            'shipping' => 'text-bg-primary',
-            'done' => 'text-bg-success',
-            'cancelled' => 'text-bg-danger',
-            default => 'text-bg-secondary',
-        };
+<style>
+    .order-detail-shell {
+        background: rgba(255,255,255,.76);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,.55);
+        border-radius: 24px;
+        box-shadow: var(--card-shadow);
+        overflow: hidden;
     }
-}
-
-if (!function_exists('paymentBadgeClass')) {
-    function paymentBadgeClass(string $status): string
-    {
-        return match ($status) {
-            'paid' => 'text-bg-success',
-            default => 'text-bg-warning',
-        };
+    .order-detail-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #fff;
+        padding: 1.25rem 1.5rem;
     }
-}
+    .order-detail-card {
+        border-radius: 20px;
+        border: 1px solid rgba(148,163,184,.15);
+        background: #fff;
+        box-shadow: 0 14px 28px rgba(15,23,42,.06);
+    }
+</style>
 
-$paymentMethod = strtoupper((string)($order->payment_method ?? 'cod'));
-$paymentStatus = (string)($order->payment_status ?? 'unpaid');
-$orderStatus = (string)($order->status ?? 'pending');
-$items = is_array($items ?? null) ? $items : [];
-$grandTotal = 0;
-$projectRoot = dirname(__DIR__, 3);
-foreach ($items as $item) {
-    $grandTotal += (float)($item->price ?? 0) * (int)($item->quantity ?? 0);
-}
-?>
-
-<div class="container py-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div>
-            <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="d-inline-flex align-items-center justify-content-center rounded-3 bg-primary text-white" style="width: 42px; height: 42px;">
-                    <i class="fas fa-file-invoice"></i>
-                </span>
-                <h2 class="mb-0 fw-bold">Chi tiết đơn #<?php echo (int)$order->id; ?></h2>
-            </div>
-            <p class="text-muted mb-0">Xem thông tin khách hàng, sản phẩm và cập nhật trạng thái đơn.</p>
-        </div>
-        <a href="/Cart/orders" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left me-1"></i>Quay lại
-        </a>
-    </div>
-
-    <div class="row g-4 mb-4">
-        <div class="col-xl-7">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-start mb-3">
-                        <div>
-                            <div class="text-muted small mb-1">Thông tin khách hàng</div>
-                            <h5 class="fw-bold mb-0"><?php echo htmlspecialchars((string)$order->customer_name); ?></h5>
-                        </div>
-                        <span class="badge <?php echo orderStatusBadgeClass($orderStatus); ?> fs-6">
-                            <?php echo htmlspecialchars($orderStatus); ?>
-                        </span>
-                    </div>
-
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <div class="p-3 rounded-3 bg-light h-100">
-                                <div class="text-muted small">Số điện thoại</div>
-                                <div class="fw-semibold"><?php echo htmlspecialchars((string)$order->customer_phone); ?></div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="p-3 rounded-3 bg-light h-100">
-                                <div class="text-muted small">Email</div>
-                                <div class="fw-semibold"><?php echo htmlspecialchars((string)($order->customer_email ?? '-')); ?></div>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="p-3 rounded-3 bg-light">
-                                <div class="text-muted small">Địa chỉ</div>
-                                <div class="fw-semibold"><?php echo htmlspecialchars((string)$order->customer_address); ?></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<main class="container">
+    <section class="order-detail-shell">
+        <div class="order-detail-hero">
+            <h1 class="h3 fw-black mb-1"><i class="fas fa-file-invoice me-2"></i>Chi tiết đơn hàng</h1>
+            <p class="mb-0 text-white-50">Trang này tải dữ liệu từ <code>/api/orders/{id}</code>.</p>
         </div>
 
-        <div class="col-xl-5">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body p-4">
-                    <div class="text-muted small mb-2">Tóm tắt đơn hàng</div>
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <div class="p-3 rounded-3 bg-light h-100">
-                                <div class="text-muted small">Thanh toán</div>
-                                <div class="fw-semibold">
-                                    <span class="badge <?php echo paymentBadgeClass($paymentStatus); ?>">
-                                        <?php echo $paymentMethod; ?> / <?php echo htmlspecialchars($paymentStatus); ?>
-                                    </span>
+        <div class="p-3 p-md-4">
+            <div id="orderDetailAlert" class="alert d-none" role="alert"></div>
+            <div id="orderDetailLoading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                <div class="mt-3 text-muted">Đang tải chi tiết đơn hàng...</div>
+            </div>
+
+            <div id="orderDetailContent" class="d-none">
+                <div class="row g-4 mb-4">
+                    <div class="col-xl-7">
+                        <div class="order-detail-card p-4 h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <div class="text-muted small mb-1">Mã đơn hàng</div>
+                                    <h2 class="h4 fw-black mb-0" id="orderDetailId">#0</h2>
+                                </div>
+                                <span class="badge fs-6" id="orderDetailStatusBadge">pending</span>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded-3 bg-light h-100">
+                                        <div class="text-muted small">Khách hàng</div>
+                                        <div class="fw-semibold" id="orderDetailCustomerName">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded-3 bg-light h-100">
+                                        <div class="text-muted small">Số điện thoại</div>
+                                        <div class="fw-semibold" id="orderDetailPhone">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded-3 bg-light h-100">
+                                        <div class="text-muted small">Email</div>
+                                        <div class="fw-semibold" id="orderDetailEmail">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-3 rounded-3 bg-light h-100">
+                                        <div class="text-muted small">Ngày tạo</div>
+                                        <div class="fw-semibold" id="orderDetailCreatedAt">-</div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="p-3 rounded-3 bg-light">
+                                        <div class="text-muted small">Địa chỉ</div>
+                                        <div class="fw-semibold" id="orderDetailAddress">-</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-6">
-                            <div class="p-3 rounded-3 bg-light h-100">
-                                <div class="text-muted small">Ngày tạo</div>
-                                <div class="fw-semibold"><?php echo htmlspecialchars((string)$order->created_at); ?></div>
+                    </div>
+
+                    <div class="col-xl-5">
+                        <div class="order-detail-card p-4 h-100">
+                            <div class="text-muted small mb-2">Tóm tắt</div>
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <div class="p-3 rounded-3 bg-light h-100">
+                                        <div class="text-muted small">Thanh toán</div>
+                                        <div class="fw-semibold">
+                                            <span class="badge" id="orderDetailPaymentBadge">COD / unpaid</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="p-3 rounded-3 bg-light h-100">
+                                        <div class="text-muted small">Số sản phẩm</div>
+                                        <div class="fw-semibold fs-4" id="orderDetailItemsCount">0</div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="p-3 rounded-3 bg-light">
+                                        <div class="text-muted small">Tổng tiền</div>
+                                        <div class="fw-bold fs-3 text-success" id="orderDetailTotal">0 ₫</div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="p-3 rounded-3 bg-light">
-                                <div class="text-muted small">Tổng tiền</div>
-                                <div class="fw-bold fs-4 text-success"><?php echo number_format((float)$order->total_price, 0, ',', '.'); ?> đ</div>
+
+                            <div id="orderDetailAdminBox" class="mt-4 d-none">
+                                <hr>
+                                <h3 class="h5 fw-bold mb-3">Cập nhật đơn hàng</h3>
+                                <form id="orderDetailForm" class="vstack gap-3">
+                                    <div>
+                                        <label class="form-label fw-semibold">Trạng thái đơn hàng</label>
+                                        <select class="form-select" name="status" id="orderDetailStatus">
+                                            <option value="pending">Pending</option>
+                                            <option value="confirmed">Confirmed</option>
+                                            <option value="shipping">Shipping</option>
+                                            <option value="done">Done</option>
+                                            <option value="cancelled">Cancelled</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label fw-semibold">Trạng thái thanh toán</label>
+                                        <select class="form-select" name="payment_status" id="orderDetailPaymentStatus">
+                                            <option value="">Giữ nguyên</option>
+                                            <option value="unpaid">Unpaid</option>
+                                            <option value="paid">Paid</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary fw-bold">
+                                        <i class="fas fa-save me-1"></i>Lưu thay đổi
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <div class="order-detail-card p-4">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                        <div>
+                            <h3 class="h5 fw-bold mb-1">Sản phẩm trong đơn</h3>
+                            <div class="text-muted">Danh sách sản phẩm được lấy trực tiếp từ API.</div>
+                        </div>
+                        <a href="/Cart/orders" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Quay lại
+                        </a>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Sản phẩm</th>
+                                    <th>Đơn giá</th>
+                                    <th>Số lượng</th>
+                                    <th class="text-end pe-3">Thành tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orderDetailItems"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
+    </section>
+</main>
 
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body p-4">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
-                <div>
-                    <h5 class="fw-bold mb-1">Cập nhật trạng thái</h5>
-                    <div class="text-muted">Chọn trạng thái mới cho đơn hàng và lưu lại.</div>
-                </div>
-            </div>
-
-            <form action="/Cart/updateStatus" method="POST" class="row g-3 align-items-end">
-                <input type="hidden" name="order_id" value="<?php echo (int)$order->id; ?>">
-                <div class="col-md-8 col-lg-6">
-                    <label class="form-label fw-semibold">Trạng thái đơn hàng</label>
-                    <select class="form-select" name="status">
-                        <?php $statuses = ['pending', 'confirmed', 'shipping', 'done', 'cancelled']; ?>
-                        <?php foreach ($statuses as $st): ?>
-                            <option value="<?php echo $st; ?>" <?php echo $orderStatus === $st ? 'selected' : ''; ?>>
-                                <?php echo ucfirst($st); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-4 col-lg-6 d-flex gap-2">
-                    <button class="btn btn-primary px-4">
-                        <i class="fas fa-save me-1"></i>Lưu
-                    </button>
-                    <a href="/Cart/orders" class="btn btn-outline-secondary px-4">Quay lại</a>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="card border-0 shadow-sm overflow-hidden">
-        <div class="card-body p-4">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                <div>
-                    <h5 class="fw-bold mb-1">Sản phẩm trong đơn</h5>
-                    <div class="text-muted">Tổng cộng <?php echo count($items); ?> sản phẩm dòng.</div>
-                </div>
-                <div class="badge text-bg-light text-success fs-6 px-3 py-2">
-                    Tổng tính lại: <?php echo number_format($grandTotal, 0, ',', '.'); ?> đ
-                </div>
-            </div>
-
-            <div class="table-responsive">
-                <table class="table align-middle table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th class="ps-3">Sản phẩm</th>
-                            <th>Đơn giá</th>
-                            <th>Số lượng</th>
-                            <th class="text-end pe-3">Thành tiền</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($items)): ?>
-                            <tr>
-                                <td colspan="4" class="text-center text-muted py-4">Không có sản phẩm nào trong đơn.</td>
-                            </tr>
-                        <?php else: foreach ($items as $item): ?>
-                            <?php
-                                $lineTotal = (float)($item->price ?? 0) * (int)($item->quantity ?? 0);
-                                $imagePath = trim((string)($item->display_image ?? $item->image ?? $item->product_image ?? ''));
-                                $imageFile = $imagePath !== '' ? $projectRoot . DIRECTORY_SEPARATOR . ltrim($imagePath, '/\\') : '';
-                                $hasImage = $imagePath !== '' && is_file($imageFile);
-                            ?>
-                            <tr>
-                                <td class="ps-3">
-                                    <div class="d-flex align-items-center gap-3">
-                                        <div class="rounded-3 bg-light d-flex align-items-center justify-content-center overflow-hidden text-muted" style="width: 56px; height: 56px;">
-                                            <?php if ($hasImage): ?>
-                                                <img src="/<?php echo htmlspecialchars($imagePath); ?>" class="w-100 h-100 object-fit-cover" alt="<?php echo htmlspecialchars((string)$item->name); ?>">
-                                            <?php else: ?>
-                                                <i class="fas fa-image"></i>
-                                            <?php endif; ?>
-                                        </div>
-                                        <div>
-                                            <div class="fw-semibold"><?php echo htmlspecialchars((string)$item->name); ?></div>
-                                            <small class="text-muted">Mã SP: #<?php echo (int)($item->product_id ?? 0); ?></small>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="fw-semibold"><?php echo number_format((float)$item->price, 0, ',', '.'); ?> đ</td>
-                                <td><span class="badge text-bg-secondary"><?php echo (int)$item->quantity; ?></span></td>
-                                <td class="text-end pe-3 fw-semibold text-success"><?php echo number_format($lineTotal, 0, ',', '.'); ?> đ</td>
-                            </tr>
-                        <?php endforeach; endif; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
+<script src="/assets/js/frontend/pages/order-detail.js" defer></script>
 
 <?php include 'app/views/shares/footer.php'; ?>

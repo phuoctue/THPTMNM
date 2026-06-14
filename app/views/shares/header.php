@@ -17,54 +17,73 @@ $cartQty = array_sum(array_column($_SESSION['cart'] ?? [], 'quantity'));
     <title>My Store</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --nav-bg: #111827;
+            --page-bg: #f6f7fb;
+            --text-dark: #0f172a;
+            --card-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
             --nav-accent: #f59e0b;
-            --nav-soft: rgba(255,255,255,.08);
+            --nav-soft: rgba(255, 255, 255, 0.08);
         }
+
         body {
             font-family: 'Nunito', sans-serif;
-            background: #f6f7fb;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            color: var(--text-dark);
+            background:
+                radial-gradient(circle at top right, rgba(245, 158, 11, 0.08), transparent 24%),
+                radial-gradient(circle at left top, rgba(59, 130, 246, 0.07), transparent 28%),
+                var(--page-bg);
         }
+
         .main-navbar {
             background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
-            box-shadow: 0 10px 30px rgba(15,23,42,.22);
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
         }
+
         .main-navbar .navbar-brand {
-            font-weight: 800;
-            letter-spacing: .2px;
+            font-weight: 900;
+            letter-spacing: 0.2px;
         }
+
         .brand-accent {
             color: var(--nav-accent);
         }
+
         .nav-pill {
-            border: 1px solid rgba(255,255,255,.12);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             background: var(--nav-soft);
             color: #fff;
             border-radius: 12px;
-            padding: .55rem .9rem;
-            font-weight: 700;
+            padding: 0.55rem 0.9rem;
+            font-weight: 800;
             text-decoration: none;
         }
+
         .nav-pill:hover {
             color: #fff;
-            background: rgba(255,255,255,.12);
+            background: rgba(255, 255, 255, 0.12);
         }
+
+        .nav-pill.is-active {
+            background: rgba(245, 158, 11, 0.18);
+            border-color: rgba(245, 158, 11, 0.35);
+        }
+
         .user-chip {
             display: inline-flex;
             align-items: center;
-            gap: .7rem;
-            padding: .4rem .75rem .4rem .45rem;
+            gap: 0.7rem;
+            padding: 0.4rem 0.75rem 0.4rem 0.45rem;
             border-radius: 999px;
-            background: rgba(255,255,255,.08);
-            border: 1px solid rgba(255,255,255,.12);
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             color: #fff;
         }
+
         .user-avatar {
             width: 34px;
             height: 34px;
@@ -76,22 +95,25 @@ $cartQty = array_sum(array_column($_SESSION['cart'] ?? [], 'quantity'));
             justify-content: center;
             color: #fff;
             font-weight: 800;
-            font-size: .9rem;
+            font-size: 0.9rem;
             overflow: hidden;
         }
+
         .page-wrapper {
             flex: 1;
-            padding: 2rem 0 3rem;
+            padding: 1.75rem 0 3rem;
         }
+
         .admin-sidebar-backdrop {
             position: fixed;
             inset: 0;
-            background: rgba(15, 23, 42, .35);
+            background: rgba(15, 23, 42, 0.35);
             opacity: 0;
             pointer-events: none;
-            transition: opacity .2s ease;
+            transition: opacity 0.2s ease;
             z-index: 1040;
         }
+
         .admin-sidebar {
             position: fixed;
             top: 0;
@@ -102,41 +124,97 @@ $cartQty = array_sum(array_column($_SESSION['cart'] ?? [], 'quantity'));
             color: #fff;
             padding: 5.25rem 1rem 1rem;
             transform: translateX(-100%);
-            transition: transform .25s ease;
+            transition: transform 0.25s ease;
             z-index: 1045;
             overflow-y: auto;
         }
+
         .admin-sidebar h6 {
-            font-size: .75rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 1px;
-            color: rgba(255,255,255,.55);
-            margin-bottom: .85rem;
+            color: rgba(255, 255, 255, 0.55);
+            margin-bottom: 0.85rem;
         }
+
         .admin-nav-link {
             display: block;
-            color: rgba(255,255,255,.85);
+            color: rgba(255, 255, 255, 0.85);
             text-decoration: none;
-            padding: .7rem .8rem;
+            padding: 0.7rem 0.8rem;
             border-radius: 12px;
             font-weight: 700;
-            margin-bottom: .35rem;
+            margin-bottom: 0.35rem;
         }
+
         .admin-nav-link:hover {
-            background: rgba(255,255,255,.08);
+            background: rgba(255, 255, 255, 0.08);
             color: #fff;
         }
+
         body.admin-mode .admin-sidebar {
             transform: translateX(0);
         }
+
         body.admin-mode .admin-sidebar-backdrop {
             opacity: 1;
             pointer-events: auto;
         }
+
+        .navbar-auth-guest,
+        .navbar-auth-user {
+            display: none;
+        }
+
+        .navbar-auth-guest.is-visible,
+        .navbar-auth-user.is-visible {
+            display: flex;
+        }
+
+        .navbar-auth-user {
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .navbar-user-meta {
+            line-height: 1.1;
+        }
+
+        .navbar-user-name {
+            display: block;
+            font-weight: 800;
+        }
+
+        .navbar-user-role {
+            display: block;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        .navbar-quick-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-cart-badge {
+            min-width: 1.35rem;
+            height: 1.35rem;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #fbbf24;
+            color: #111827;
+            font-size: 0.72rem;
+            font-weight: 900;
+            padding: 0 0.35rem;
+        }
+
         @media (max-width: 991px) {
-            .admin-sidebar {
-                width: 82vw;
-                max-width: 320px;
+            .navbar-auth-user {
+                margin-top: 0.75rem;
+                align-items: flex-start;
             }
         }
     </style>
@@ -151,8 +229,12 @@ $cartQty = array_sum(array_column($_SESSION['cart'] ?? [], 'quantity'));
 
         <div class="collapse navbar-collapse" id="mainNavbarContent">
             <div class="navbar-nav ms-auto align-items-lg-center gap-2">
-                <a class="nav-pill" href="/Home"><i class="fas fa-home me-1"></i>Trang chủ</a>
-                <a class="nav-pill" href="/Cart"><i class="fas fa-shopping-cart me-1"></i>Giỏ hàng <span class="badge bg-warning text-dark ms-1" id="cartQtyBadge"><?php echo (int) $cartQty; ?></span></a>
+                <a class="nav-pill is-active" href="/Home"><i class="fas fa-home me-1"></i>Trang chủ</a>
+                <a class="nav-pill navbar-quick-link" href="/Cart">
+                    <i class="fas fa-shopping-cart"></i>
+                    Giỏ hàng
+                    <span class="nav-cart-badge" id="cartQtyBadge"><?php echo (int) $cartQty; ?></span>
+                </a>
 
                 <?php if ($isAdmin): ?>
                     <button type="button" id="manageToggleBtn" class="nav-pill btn btn-link text-decoration-none">
@@ -160,36 +242,36 @@ $cartQty = array_sum(array_column($_SESSION['cart'] ?? [], 'quantity'));
                     </button>
                 <?php endif; ?>
 
-                <?php if ($isLoggedIn): ?>
-                    <div class="dropdown">
-                        <button class="btn user-chip dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <span class="user-avatar">
-                                <?php if (!empty($userAvatar)): ?>
-                                    <img src="/<?php echo htmlspecialchars($userAvatar); ?>" alt="Avatar" class="w-100 h-100">
-                                <?php else: ?>
-                                    <?php echo strtoupper(substr($userName, 0, 1)); ?>
-                                <?php endif; ?>
-                            </span>
-                            <span class="text-start d-none d-sm-inline">
-                                <div class="fw-bold"><?php echo htmlspecialchars($userName); ?></div>
-                                <small class="text-white-50"><?php echo htmlspecialchars($userRole === 'admin' ? 'Admin' : 'Customer'); ?></small>
-                            </span>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0">
-                            <li><a class="dropdown-item" href="/profile"><i class="fas fa-user me-2"></i>Hồ sơ</a></li>
-                            <li><a class="dropdown-item" href="/profile/edit"><i class="fas fa-edit me-2"></i>Chỉnh sửa hồ sơ</a></li>
-                            <li><a class="dropdown-item" href="/profile/changePassword"><i class="fas fa-lock me-2"></i>Đổi mật khẩu</a></li>
-                            <?php if (!AuthHelper::isEmailVerified()): ?>
-                                <li><a class="dropdown-item" href="/auth/emailVerification"><i class="fas fa-envelope me-2"></i>Xác thực email</a></li>
-                            <?php endif; ?>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="/auth/logout"><i class="fas fa-sign-out-alt me-2"></i>Đăng xuất</a></li>
-                        </ul>
-                    </div>
-                <?php else: ?>
+                <div class="navbar-auth-guest <?php echo $isLoggedIn ? '' : 'is-visible'; ?>" id="navbarGuestActions">
                     <a class="nav-pill" href="/auth/login"><i class="fas fa-sign-in-alt me-1"></i>Đăng nhập</a>
                     <a class="nav-pill" href="/auth/register"><i class="fas fa-user-plus me-1"></i>Đăng ký</a>
-                <?php endif; ?>
+                </div>
+
+                <div class="navbar-auth-user dropdown <?php echo $isLoggedIn ? 'is-visible' : ''; ?>" id="navbarUserActions">
+                    <button class="btn user-chip dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <span class="user-avatar" id="navbarUserAvatar">
+                            <?php if (!empty($userAvatar)): ?>
+                                <img src="/<?php echo htmlspecialchars($userAvatar); ?>" alt="Avatar" class="w-100 h-100">
+                            <?php else: ?>
+                                <?php echo strtoupper(substr($userName, 0, 1)); ?>
+                            <?php endif; ?>
+                        </span>
+                        <span class="text-start d-none d-sm-inline navbar-user-meta">
+                            <span class="navbar-user-name" id="navbarUserName"><?php echo htmlspecialchars($userName); ?></span>
+                            <span class="navbar-user-role" id="navbarUserRole"><?php echo htmlspecialchars($userRole === 'admin' ? 'Admin' : 'Customer'); ?></span>
+                        </span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                        <li><a class="dropdown-item" href="/profile"><i class="fas fa-user me-2"></i>Hồ sơ</a></li>
+                        <li><a class="dropdown-item" href="/profile/edit"><i class="fas fa-edit me-2"></i>Chỉnh sửa hồ sơ</a></li>
+                        <li><a class="dropdown-item" href="/profile/changePassword"><i class="fas fa-lock me-2"></i>Đổi mật khẩu</a></li>
+                        <?php if (!AuthHelper::isEmailVerified()): ?>
+                            <li><a class="dropdown-item" href="/auth/emailVerification"><i class="fas fa-envelope me-2"></i>Xác thực email</a></li>
+                        <?php endif; ?>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><button type="button" class="dropdown-item text-danger" id="navbarLogoutBtn"><i class="fas fa-sign-out-alt me-2"></i>Đăng xuất</button></li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>

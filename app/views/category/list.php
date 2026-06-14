@@ -1,101 +1,77 @@
-﻿<?php include 'app/views/shares/header.php'; ?>
+<?php include 'app/views/shares/header.php'; ?>
 
 <style>
-.cat-table-card {
-    background: #fff;
-    border-radius: 16px;
-    box-shadow: var(--card-shadow);
-    overflow: hidden;
-}
-
-.cat-table-card table {
-    margin-bottom: 0;
-}
-
-.cat-table-card thead th {
-    background: var(--dark);
-    color: #fff;
-    font-weight: 700;
-    border: none;
-    padding: .9rem 1.2rem;
-    font-size: .85rem;
-    text-transform: uppercase;
-    letter-spacing: .5px;
-}
-
-.cat-table-card tbody td {
-    vertical-align: middle;
-    padding: .85rem 1.2rem;
-    border-color: #f1f1ff;
-}
-
-.cat-table-card tbody tr:hover td {
-    background: #fafbff;
-}
-
-.badge-cat {
-    background: #eef0ff;
-    color: var(--primary);
-    font-size: .75rem;
-    font-weight: 700;
-    border-radius: 20px;
-    padding: .25rem .75rem;
-}
+    .admin-shell {
+        background: rgba(255,255,255,.74);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,.55);
+        border-radius: 24px;
+        box-shadow: var(--card-shadow);
+        padding: 1.25rem;
+    }
+    .admin-table {
+        background: #fff;
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0 14px 32px rgba(15,23,42,.06);
+    }
+    .admin-table thead th {
+        background: #0f172a;
+        color: #fff;
+        border-bottom: 0;
+    }
+    .admin-empty {
+        padding: 4rem 1rem;
+        text-align: center;
+        color: #64748b;
+    }
+    .admin-empty i {
+        font-size: 3.25rem;
+        color: #94a3b8;
+        margin-bottom: 1rem;
+    }
 </style>
 
-<div class="d-flex align-items-center justify-content-between mb-4">
-    <h1 class="page-title mb-0" style="font-size:1.8rem;font-weight:800;color:var(--dark);">
-        <i class="fas fa-tags" style="color:var(--primary)"></i> Danh mục
-    </h1>
-    <a href="/Category/add" class="btn btn-primary">
-        <i class="fas fa-plus mr-1"></i> Thêm danh mục
-    </a>
-</div>
+<main class="container">
+    <section class="admin-shell">
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-3">
+            <div>
+                <h1 class="h3 fw-black mb-1"><i class="fas fa-tags text-primary me-2"></i>Quản lý danh mục</h1>
+                <p class="text-muted mb-0">Danh mục được load từ `/api/categories`.</p>
+            </div>
+            <a href="/Category/add" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>Thêm danh mục
+            </a>
+        </div>
 
-<?php if (empty($categories)): ?>
-    <div class="text-center py-5 text-muted">
-        <i class="fas fa-tags fa-3x mb-3 d-block"></i>
-        <p class="font-weight-700">Chưa có danh mục nào.</p>
-        <a href="/Category/add" class="btn btn-primary">
-            <i class="fas fa-plus mr-1"></i> Thêm ngay
-        </a>
-    </div>
-<?php else: ?>
-    <div class="cat-table-card">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th style="width:60px">ID</th>
-                    <th>Tên danh mục</th>
-                    <th>Mô tả</th>
-                    <th style="width:160px">Hành động</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($categories as $cat): ?>
-                <tr>
-                    <td><span class="badge-cat"><?php echo $cat->id; ?></span></td>
-                    <td class="font-weight-700"><?php echo htmlspecialchars($cat->name); ?></td>
-                    <td class="text-muted" style="font-size:.9rem">
-                        <?php echo htmlspecialchars($cat->description ?? '—'); ?>
-                    </td>
-                    <td>
-                        <a href="/Category/edit/<?php echo $cat->id; ?>"
-                           class="btn btn-warning btn-sm mr-1">
-                            <i class="fas fa-edit"></i> Sửa
-                        </a>
-                        <a href="/Category/delete/<?php echo $cat->id; ?>"
-                           class="btn btn-danger btn-sm"
-                          >
-                            <i class="fas fa-trash"></i>
-                        </a>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-<?php endif; ?>
+        <div id="adminCategoryAlert" class="alert d-none" role="alert"></div>
+        <div id="adminCategoryLoading" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+            <div class="mt-3 text-muted">Đang tải danh mục...</div>
+        </div>
+
+        <div class="table-responsive d-none" id="adminCategoryTableWrap">
+            <table class="table admin-table mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:90px;">ID</th>
+                        <th>Tên danh mục</th>
+                        <th>Mô tả</th>
+                        <th style="width:170px;">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody id="adminCategoryTableBody"></tbody>
+            </table>
+        </div>
+
+        <div id="adminCategoryEmpty" class="admin-empty d-none">
+            <i class="fas fa-tags d-block"></i>
+            <h2 class="h5 fw-bold mb-1">Chưa có danh mục nào</h2>
+            <p class="mb-0">Bấm "Thêm danh mục" để tạo dữ liệu đầu tiên.</p>
+        </div>
+    </section>
+</main>
+
+<script src="/assets/js/frontend/pages/admin/categories.js" defer></script>
 
 <?php include 'app/views/shares/footer.php'; ?>
-

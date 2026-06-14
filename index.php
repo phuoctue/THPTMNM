@@ -43,6 +43,7 @@ if (!empty($segments) && $segments[0] === 'api') {
         'user' => 'UserApiController',
         'users' => 'UserApiController',
         'profile' => 'ProfileApiController',
+        'settings' => 'AdminSettingsApiController',
         'dashboard' => 'DashboardApiController',
         'home' => 'HomeApiController',
     ];
@@ -79,6 +80,7 @@ if (!empty($segments) && $segments[0] === 'api') {
     $params = [];
     $id = $segments[$apiOffset + 1] ?? null;
     $tail = $segments[$apiOffset + 2] ?? null;
+    $effectiveMethod = strtoupper((string) ($_POST['_method'] ?? $method));
 
     if (in_array($resource, ['auth', 'profile', 'dashboard', 'home'], true)) {
         $action = $id !== null ? $id : 'index';
@@ -87,7 +89,7 @@ if (!empty($segments) && $segments[0] === 'api') {
         if ($id === 'clear') {
             $action = 'clear';
         } else {
-            switch ($method) {
+            switch ($effectiveMethod) {
                 case 'GET':
                     $action = 'index';
                     break;
@@ -106,33 +108,38 @@ if (!empty($segments) && $segments[0] === 'api') {
                     break;
             }
 
-            if (in_array($method, ['PUT', 'PATCH', 'DELETE'], true) && $id !== null && $id !== 'clear') {
+            if (in_array($effectiveMethod, ['PUT', 'PATCH', 'DELETE'], true) && $id !== null && $id !== 'clear') {
                 $params = [$id];
             }
         }
     } elseif ($resource === 'order' || $resource === 'orders') {
-        switch ($method) {
-            case 'GET':
-                $action = $id !== null ? 'show' : 'index';
-                break;
-            case 'POST':
-                $action = 'store';
-                break;
-            case 'PUT':
-            case 'PATCH':
-                $action = $id !== null ? 'update' : null;
-                $params = $id !== null ? [$id] : [];
-                break;
-            case 'DELETE':
-                $action = $id !== null ? 'destroy' : null;
-                $params = $id !== null ? [$id] : [];
-                break;
-            default:
-                $action = null;
-                break;
+        if ($id !== null && in_array($tail, ['cancel', 'payment'], true)) {
+            $action = $tail;
+            $params = [$id];
+        } else {
+            switch ($method) {
+                case 'GET':
+                    $action = $id !== null ? 'show' : 'index';
+                    break;
+                case 'POST':
+                    $action = 'store';
+                    break;
+                case 'PUT':
+                case 'PATCH':
+                    $action = $id !== null ? 'update' : null;
+                    $params = $id !== null ? [$id] : [];
+                    break;
+                case 'DELETE':
+                    $action = $id !== null ? 'destroy' : null;
+                    $params = $id !== null ? [$id] : [];
+                    break;
+                default:
+                    $action = null;
+                    break;
+            }
         }
     } else {
-        switch ($method) {
+        switch ($effectiveMethod) {
             case 'GET':
                 $action = $id !== null ? 'show' : 'index';
                 break;

@@ -1,9 +1,5 @@
 <?php
-require_once 'app/libs/ViewHelper.php';
-$flash = ViewHelper::consumeFlash();
-$old_data = $old_data ?? $flash['old_data'];
-$errors = $errors ?? $flash['errors'];
-$success = $success ?? $flash['success'];
+$redirectAfterLogin = $_GET['redirect'] ?? '/';
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -13,7 +9,7 @@ $success = $success ?? $flash['success'];
     <title>Đăng nhập - My Store</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Nunito', sans-serif;
@@ -39,7 +35,7 @@ $success = $success ?? $flash['success'];
             background: linear-gradient(160deg, #2563eb 0%, #1d4ed8 48%, #111827 100%);
         }
         .auth-aside h1 {
-            font-weight: 800;
+            font-weight: 900;
             font-size: clamp(2rem, 4vw, 3.2rem);
             margin-bottom: 18px;
         }
@@ -87,10 +83,10 @@ $success = $success ?? $flash['success'];
         <div>
             <div class="badge text-bg-warning text-dark mb-3">My Store</div>
             <h1>Đăng nhập để tiếp tục mua sắm</h1>
-            <p class="mb-0">Quản lý tài khoản, theo dõi đơn hàng và bảo mật bằng xác thực email, remember me và phân quyền.</p>
+            <p class="mb-0">Quản lý tài khoản, theo dõi đơn hàng và bảo mật bằng JWT lưu trong localStorage.</p>
         </div>
         <div class="mt-5 small text-white-50">
-            <i class="fas fa-shield-alt me-1"></i> Bảo mật bằng password_hash, session an toàn và cookie HttpOnly.
+            <i class="fas fa-shield-alt me-1"></i> Đăng nhập qua API `/api/auth/login`.
         </div>
     </div>
 
@@ -98,19 +94,20 @@ $success = $success ?? $flash['success'];
         <h2 class="fw-bold mb-2">Đăng nhập</h2>
         <p class="text-muted mb-4">Chào mừng bạn quay lại.</p>
 
-        <?php require 'app/views/shares/flash.php'; ?>
+        <div id="authAlert" class="alert d-none" role="alert"></div>
 
-        <form method="POST" action="/auth/login">
+        <form id="loginForm" autocomplete="off">
+            <input type="hidden" name="redirect" value="<?php echo htmlspecialchars($redirectAfterLogin); ?>">
             <div class="mb-3">
                 <label class="form-label fw-bold">Email</label>
-                <input type="email" name="email" class="form-control" placeholder="example@gmail.com" value="<?php echo htmlspecialchars($old_data['email'] ?? ''); ?>" required>
+                <input type="email" name="email" class="form-control" placeholder="example@gmail.com" required>
             </div>
 
             <div class="mb-3">
                 <label class="form-label fw-bold">Mật khẩu</label>
                 <div class="input-group">
                     <input type="password" name="password" id="login_password" class="form-control" placeholder="Nhập mật khẩu" required>
-                    <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('login_password')">
+                    <button type="button" class="btn btn-outline-secondary" data-toggle-password="#login_password">
                         <i class="fas fa-eye"></i>
                     </button>
                 </div>
@@ -118,13 +115,16 @@ $success = $success ?? $flash['success'];
 
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="remember_me" id="remember_me">
+                    <input class="form-check-input" type="checkbox" name="remember_me" id="remember_me" checked>
                     <label class="form-check-label" for="remember_me">Ghi nhớ đăng nhập</label>
                 </div>
                 <a href="/auth/forgotPassword" class="muted-link">Quên mật khẩu?</a>
             </div>
 
-            <button class="btn btn-auth w-100" type="submit">Đăng nhập</button>
+            <button class="btn btn-auth w-100" type="submit" id="loginSubmitBtn">
+                <span class="btn-label">Đăng nhập</span>
+                <span class="spinner-border spinner-border-sm d-none ms-2" aria-hidden="true"></span>
+            </button>
         </form>
 
         <div class="text-center mt-4">
@@ -134,11 +134,9 @@ $success = $success ?? $flash['success'];
     </div>
 </div>
 
-<script>
-function togglePassword(id) {
-    var field = document.getElementById(id);
-    field.type = field.type === 'password' ? 'text' : 'password';
-}
-</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/assets/js/frontend/core/ui.js"></script>
+<script src="/assets/js/frontend/core/api.js"></script>
+<script src="/assets/js/frontend/pages/auth-page.js"></script>
 </body>
 </html>

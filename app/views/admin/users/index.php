@@ -1,91 +1,75 @@
-<?php
-require_once 'app/libs/AuthHelper.php';
-require_once 'app/libs/ViewHelper.php';
-\AuthHelper::requireAdmin();
+<?php include 'app/views/shares/header.php'; ?>
 
-$flash = ViewHelper::consumeFlash();
-$errors = $errors ?? $flash['errors'];
-$success = $success ?? $flash['success'];
-?>
-<?php require_once 'app/views/shares/header.php'; ?>
+<style>
+    .admin-shell {
+        background: rgba(255,255,255,.76);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,.55);
+        border-radius: 24px;
+        box-shadow: var(--card-shadow);
+        overflow: hidden;
+    }
+    .admin-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #fff;
+        padding: 1.25rem 1.5rem;
+    }
+    .admin-card {
+        border-radius: 20px;
+        border: 1px solid rgba(148,163,184,.15);
+        background: #fff;
+        box-shadow: 0 14px 28px rgba(15,23,42,.06);
+    }
+</style>
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
-    <div>
-        <h3 class="fw-bold mb-1">Quản lý người dùng</h3>
-        <p class="text-muted mb-0">Xem, chỉnh sửa, khóa/mở khóa và xóa tài khoản.</p>
-    </div>
-    <a href="/Home" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Về trang chủ</a>
-</div>
-
-<?php require 'app/views/shares/flash.php'; ?>
-
-<div class="card border-0 shadow-sm">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>ID</th>
-                        <th>Người dùng</th>
-                        <th>Liên hệ</th>
-                        <th>Vai trò</th>
-                        <th>Trạng thái</th>
-                        <th>Xác thực</th>
-                        <th class="text-end">Hành động</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach (($users ?? []) as $item): ?>
-                        <tr class="<?php echo !empty($item['deleted_at']) ? 'table-secondary' : ''; ?>">
-                            <td>#<?php echo (int) $item['id']; ?></td>
-                            <td>
-                                <div class="d-flex align-items-center gap-2">
-                                    <div class="rounded-circle overflow-hidden d-inline-flex align-items-center justify-content-center text-white fw-bold"
-                                         style="width: 40px; height: 40px; background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);">
-                                        <?php if (!empty($item['avatar'])): ?>
-                                            <img src="/<?php echo htmlspecialchars($item['avatar']); ?>" class="w-100 h-100 object-fit-cover" alt="Avatar">
-                                        <?php else: ?>
-                                            <?php echo strtoupper(substr($item['full_name'], 0, 1)); ?>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold"><?php echo htmlspecialchars($item['full_name']); ?></div>
-                                        <small class="text-muted"><?php echo htmlspecialchars($item['email']); ?></small>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <div><?php echo !empty($item['phone']) ? htmlspecialchars($item['phone']) : '-'; ?></div>
-                                <small class="text-muted"><?php echo !empty($item['address']) ? htmlspecialchars($item['address']) : ''; ?></small>
-                            </td>
-                            <td>
-                                <span class="badge text-bg-<?php echo $item['role'] === 'admin' ? 'dark' : 'primary'; ?>">
-                                    <?php echo htmlspecialchars($item['role']); ?>
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge text-bg-<?php echo ($item['status'] ?? 'active') === 'locked' ? 'danger' : 'success'; ?>">
-                                    <?php echo htmlspecialchars($item['status'] ?? 'active'); ?>
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge text-bg-<?php echo !empty($item['email_verified_at']) ? 'success' : 'warning'; ?>">
-                                    <?php echo !empty($item['email_verified_at']) ? 'Đã xác thực' : 'Chưa xác thực'; ?>
-                                </span>
-                            </td>
-                            <td class="text-end">
-                                <div class="btn-group btn-group-sm flex-wrap" role="group">
-                                    <a href="/admin/users/edit/<?php echo (int) $item['id']; ?>" class="btn btn-outline-primary">Sửa</a>
-                                    <a href="/admin/users/toggleStatus/<?php echo (int) $item['id']; ?>" class="btn btn-outline-warning">Khóa/Mở</a>
-                                    <a href="/admin/users/delete/<?php echo (int) $item['id']; ?>" class="btn btn-outline-danger" onclick="return confirm('Xóa vĩnh viễn người dùng này?');">Xóa</a>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+<main class="container">
+    <section class="admin-shell">
+        <div class="admin-hero">
+            <h1 class="h3 fw-black mb-1"><i class="fas fa-users me-2"></i>Quản lý người dùng</h1>
+            <p class="mb-0 text-white-50">Danh sách được tải từ <code>/api/users</code>.</p>
         </div>
-    </div>
-</div>
 
-<?php require_once 'app/views/shares/footer.php'; ?>
+        <div class="p-3 p-md-4">
+            <div id="adminUsersAlert" class="alert d-none" role="alert"></div>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+                <div>
+                    <h2 class="h5 fw-bold mb-1">Danh sách tài khoản</h2>
+                    <div class="text-muted">Sửa, khóa/mở khóa và xóa người dùng trực tiếp qua API.</div>
+                </div>
+                <a href="/Home" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Về trang chủ</a>
+            </div>
+
+            <div id="adminUsersLoading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                <div class="mt-3 text-muted">Đang tải người dùng...</div>
+            </div>
+
+            <div id="adminUsersContent" class="admin-card d-none overflow-hidden">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Người dùng</th>
+                                <th>Liên hệ</th>
+                                <th>Vai trò</th>
+                                <th>Trạng thái</th>
+                                <th>Xác thực</th>
+                                <th class="text-end">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminUsersTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="adminUsersEmpty" class="alert alert-info d-none mb-0">
+                Chưa có người dùng nào.
+            </div>
+        </div>
+    </section>
+</main>
+
+<script src="/assets/js/frontend/pages/admin-users.js" defer></script>
+
+<?php include 'app/views/shares/footer.php'; ?>

@@ -2,6 +2,8 @@
 
 require_once 'app/libs/ApiResponse.php';
 require_once 'app/libs/AuthHelper.php';
+require_once 'app/libs/AuthMiddleware.php';
+require_once 'app/libs/JwtHelper.php';
 require_once 'app/libs/MailHelper.php';
 require_once 'app/models/UserModel.php';
 
@@ -16,7 +18,7 @@ class AuthApiController
 
     public function register(): void
     {
-        $data = $this->getJsonInput();
+        $data = $this->requestData();
         $errors = $this->validateRegisterPayload($data);
 
         if (!empty($errors)) {
@@ -64,7 +66,7 @@ class AuthApiController
 
     public function login(): void
     {
-        $data = $this->getJsonInput();
+        $data = $this->requestData();
         $errors = $this->validateLoginPayload($data);
 
         if (!empty($errors)) {
@@ -92,7 +94,22 @@ class AuthApiController
             $this->issueRememberMeCookie((int) $user['id']);
         }
 
-        ApiResponse::success('Đăng nhập thành công', $this->makeUserPayload($user));
+        $token = JwtHelper::encode([
+            'sub' => (int) $user['id'],
+            'email' => $user['email'] ?? '',
+            'name' => $user['full_name'] ?? '',
+            'role' => $user['role'] ?? 'customer',
+            'status' => $user['status'] ?? 'active',
+            'avatar' => $user['avatar'] ?? null,
+            'email_verified_at' => $user['email_verified_at'] ?? null,
+        ], 7200);
+
+        ApiResponse::success('Đăng nhập thành công', [
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'expires_in' => 7200,
+            'user' => $this->makeUserPayload($user),
+        ]);
     }
 
     public function logout(): void
@@ -118,11 +135,8 @@ class AuthApiController
 
     public function me(): void
     {
-        if (!AuthHelper::isLoggedIn()) {
-            ApiResponse::error('Unauthenticated', null, 401);
-        }
-
-        $user = $this->userModel->findById(AuthHelper::getUserId() ?? 0);
+        $payload = AuthMiddleware::authenticate();
+        $user = $this->userModel->findById((int) $payload['sub']);
         if (!$user) {
             ApiResponse::error('User not found', null, 404);
         }
@@ -132,7 +146,7 @@ class AuthApiController
 
     public function verifyEmail(): void
     {
-        $data = $this->getJsonInput();
+        $data = $this->requestData();
         $token = trim((string) ($data['token'] ?? ($_GET['token'] ?? '')));
         $parts = explode('.', $token, 2);
 
@@ -161,7 +175,7 @@ class AuthApiController
     public function resendVerification(): void
     {
         if (!AuthHelper::isLoggedIn()) {
-            ApiResponse::error('Unauthenticated', null, 401);
+            ApiResponse::error('Unauthorized', null, 401);
         }
 
         $user = $this->userModel->findById(AuthHelper::getUserId() ?? 0);
@@ -188,7 +202,7 @@ class AuthApiController
 
     public function forgotPassword(): void
     {
-        $data = $this->getJsonInput();
+        $data = $this->requestData();
         $email = trim((string) ($data['email'] ?? ''));
 
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -213,7 +227,7 @@ class AuthApiController
 
     public function resetPassword(): void
     {
-        $data = $this->getJsonInput();
+        $data = $this->requestData();
         $token = trim((string) ($data['token'] ?? ($_GET['token'] ?? '')));
         $password = (string) ($data['password'] ?? '');
         $confirmPassword = (string) ($data['confirm_password'] ?? '');
@@ -256,12 +270,16 @@ class AuthApiController
         ApiResponse::success('Đặt lại mật khẩu thành công');
     }
 
-    private function getJsonInput(): array
+    private function requestData(): array
     {
-        $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
+        if (!empty($_POST)) {
+            return $_POST;
+        }
 
-        return is_array($data) ? $data : [];
+        $raw = file_get_contents('php://input');
+        $json = json_decode($raw, true);
+
+        return is_array($json) ? $json : [];
     }
 
     private function validateRegisterPayload(array $data): array

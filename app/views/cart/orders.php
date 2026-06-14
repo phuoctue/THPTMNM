@@ -1,142 +1,88 @@
 <?php include 'app/views/shares/header.php'; ?>
 
-<?php
-$orderCount = is_array($orders ?? null) ? count($orders) : 0;
-$totalRevenue = 0;
-if (!empty($orders)) {
-    foreach ($orders as $o) {
-        $totalRevenue += (float)($o->total_price ?? 0);
+<style>
+    .orders-shell {
+        background: rgba(255,255,255,.76);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,.55);
+        border-radius: 24px;
+        box-shadow: var(--card-shadow);
+        overflow: hidden;
     }
-}
-
-if (!function_exists('orderStatusBadgeClass')) {
-    function orderStatusBadgeClass(string $status): string
-    {
-        return match ($status) {
-            'confirmed' => 'text-bg-info',
-            'shipping' => 'text-bg-primary',
-            'done' => 'text-bg-success',
-            'cancelled' => 'text-bg-danger',
-            default => 'text-bg-secondary',
-        };
+    .orders-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #fff;
+        padding: 1.25rem 1.5rem;
     }
-}
-
-if (!function_exists('paymentBadgeClass')) {
-    function paymentBadgeClass(string $status): string
-    {
-        return match ($status) {
-            'paid' => 'text-bg-success',
-            default => 'text-bg-warning',
-        };
+    .orders-card {
+        border-radius: 20px;
+        border: 1px solid rgba(148,163,184,.15);
+        background: #fff;
+        box-shadow: 0 14px 28px rgba(15,23,42,.06);
     }
-}
-?>
+</style>
 
-<div class="container py-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div>
-            <div class="d-flex align-items-center gap-2 mb-2">
-                <span class="d-inline-flex align-items-center justify-content-center rounded-3 bg-primary text-white" style="width: 42px; height: 42px;">
-                    <i class="fas fa-receipt"></i>
-                </span>
-                <h2 class="mb-0 fw-bold">Danh sách đơn hàng</h2>
-            </div>
-            <p class="text-muted mb-0">Theo dõi trạng thái đơn hàng, thanh toán và chi tiết mua hàng.</p>
+<main class="container">
+    <section class="orders-shell">
+        <div class="orders-hero">
+            <h1 class="h3 fw-black mb-1"><i class="fas fa-receipt me-2"></i>Danh sách đơn hàng</h1>
+            <p class="mb-0 text-white-50">Dữ liệu được tải trực tiếp từ <code>/api/orders</code>.</p>
         </div>
-        <a href="/Product" class="btn btn-outline-primary">
-            <i class="fas fa-box me-1"></i>Về sản phẩm
-        </a>
-    </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-muted mb-1">Tổng đơn hàng</div>
-                    <div class="fs-3 fw-bold"><?php echo $orderCount; ?></div>
+        <div class="p-3 p-md-4">
+            <div id="ordersAlert" class="alert d-none" role="alert"></div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="orders-card p-3 h-100">
+                        <div class="text-muted mb-1">Tổng đơn hàng</div>
+                        <div class="fs-3 fw-bold" id="ordersTotalCount">0</div>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-muted mb-1">Tổng doanh thu</div>
-                    <div class="fs-3 fw-bold text-success"><?php echo number_format($totalRevenue, 0, ',', '.'); ?> đ</div>
+                <div class="col-md-4">
+                    <div class="orders-card p-3 h-100">
+                        <div class="text-muted mb-1">Tổng doanh thu</div>
+                        <div class="fs-3 fw-bold text-success" id="ordersTotalRevenue">0 ₫</div>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-muted mb-1">Trạng thái mới nhất</div>
-                    <div class="fs-3 fw-bold text-primary">
-                        <?php echo !empty($orders) ? htmlspecialchars((string)($orders[0]->status ?? 'pending')) : '---'; ?>
+                <div class="col-md-4">
+                    <div class="orders-card p-3 h-100">
+                        <div class="text-muted mb-1">Trạng thái mới nhất</div>
+                        <div class="fs-3 fw-bold text-primary" id="ordersLatestStatus">---</div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <div class="card border-0 shadow-sm overflow-hidden">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th class="ps-4">Mã đơn</th>
-                        <th>Khách hàng</th>
-                        <th>Thanh toán</th>
-                        <th>Tổng tiền</th>
-                        <th>Trạng thái</th>
-                        <th>Ngày tạo</th>
-                        <th class="text-end pe-4">Hành động</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php if (empty($orders)): ?>
-                    <tr>
-                        <td colspan="7" class="text-center text-muted py-5">
-                            <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
-                            Chưa có đơn hàng nào.
-                        </td>
-                    </tr>
-                <?php else: foreach ($orders as $o): ?>
-                    <?php
-                        $paymentMethod = strtoupper((string)($o->payment_method ?? 'cod'));
-                        $paymentStatus = (string)($o->payment_status ?? 'unpaid');
-                        $orderStatus = (string)($o->status ?? 'pending');
-                    ?>
-                    <tr>
-                        <td class="ps-4 fw-semibold">#<?php echo (int)$o->id; ?></td>
-                        <td>
-                            <div class="fw-semibold"><?php echo htmlspecialchars((string)$o->customer_name); ?></div>
-                            <small class="text-muted"><?php echo htmlspecialchars((string)$o->customer_phone); ?></small>
-                        </td>
-                        <td>
-                            <span class="badge <?php echo paymentBadgeClass($paymentStatus); ?>">
-                                <?php echo $paymentMethod; ?> / <?php echo htmlspecialchars($paymentStatus); ?>
-                            </span>
-                        </td>
-                        <td class="fw-semibold text-success">
-                            <?php echo number_format((float)$o->total_price, 0, ',', '.'); ?> đ
-                        </td>
-                        <td>
-                            <span class="badge <?php echo orderStatusBadgeClass($orderStatus); ?>">
-                                <?php echo htmlspecialchars($orderStatus); ?>
-                            </span>
-                        </td>
-                        <td class="text-muted"><?php echo htmlspecialchars((string)$o->created_at); ?></td>
-                        <td class="text-end pe-4">
-                            <a href="/Cart/orderDetail/<?php echo (int)$o->id; ?>" class="btn btn-sm btn-primary">
-                                <i class="fas fa-eye me-1"></i>Chi tiết
-                            </a>
-                        </td>
-                    </tr>
-                <?php endforeach; endif; ?>
-                </tbody>
-            </table>
+            <div id="ordersLoading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                <div class="mt-3 text-muted">Đang tải đơn hàng...</div>
+            </div>
+
+            <div id="ordersContent" class="orders-card d-none overflow-hidden">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Mã đơn</th>
+                                <th>Khách hàng</th>
+                                <th>Thanh toán</th>
+                                <th>Tổng tiền</th>
+                                <th>Trạng thái</th>
+                                <th>Ngày tạo</th>
+                                <th class="text-end pe-4">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="ordersEmptyState" class="alert alert-info d-none mb-0">
+                Chưa có đơn hàng nào.
+            </div>
         </div>
-    </div>
-</div>
+    </section>
+</main>
+
+<script src="/assets/js/frontend/pages/orders.js" defer></script>
 
 <?php include 'app/views/shares/footer.php'; ?>

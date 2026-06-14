@@ -2,6 +2,7 @@
 
 require_once 'app/config/database.php';
 require_once 'app/libs/ApiResponse.php';
+require_once 'app/libs/AuthMiddleware.php';
 require_once 'app/models/CategoryModel.php';
 
 class CategoryApiController
@@ -16,14 +17,12 @@ class CategoryApiController
 
     public function index(): void
     {
-        $categories = $this->categoryModel->getCategories();
-        ApiResponse::success('Categories retrieved successfully', $categories);
+        ApiResponse::success('Categories retrieved successfully', $this->categoryModel->getCategories());
     }
 
     public function show($id): void
     {
         $category = $this->categoryModel->getCategoryById((int) $id);
-
         if (!$category) {
             ApiResponse::error('Category not found', null, 404);
         }
@@ -33,7 +32,8 @@ class CategoryApiController
 
     public function store(): void
     {
-        $data = $this->getJsonInput();
+        $this->requireAdmin();
+        $data = $this->requestData();
         $errors = $this->validatePayload($data);
 
         if (!empty($errors)) {
@@ -42,7 +42,7 @@ class CategoryApiController
 
         $created = $this->categoryModel->addCategory(
             trim((string) $data['name']),
-            trim((string)($data['description'] ?? ''))
+            trim((string) ($data['description'] ?? ''))
         );
 
         if (!$created) {
@@ -54,22 +54,23 @@ class CategoryApiController
 
     public function update($id): void
     {
-        $category = $this->categoryModel->getCategoryById((int) $id);
+        $this->requireAdmin();
+        $id = (int) $id;
+        $category = $this->categoryModel->getCategoryById($id);
         if (!$category) {
             ApiResponse::error('Category not found', null, 404);
         }
 
-        $data = $this->getJsonInput();
+        $data = $this->requestData();
         $errors = $this->validatePayload($data);
-
         if (!empty($errors)) {
             ApiResponse::error('Validation failed', $errors, 422);
         }
 
         $updated = $this->categoryModel->updateCategory(
-            (int) $id,
+            $id,
             trim((string) $data['name']),
-            trim((string)($data['description'] ?? ''))
+            trim((string) ($data['description'] ?? ''))
         );
 
         if (!$updated) {
@@ -81,8 +82,13 @@ class CategoryApiController
 
     public function destroy($id): void
     {
-        $deleted = $this->categoryModel->deleteCategory((int) $id);
+        $this->requireAdmin();
+        $id = (int) $id;
+        if ($this->categoryModel->hasProducts($id)) {
+            ApiResponse::error('Không thể xóa danh mục khi vẫn còn sản phẩm thuộc danh mục này', null, 409);
+        }
 
+        $deleted = $this->categoryModel->deleteCategory($id);
         if (!$deleted) {
             ApiResponse::error('Category deletion failed', null, 400);
         }
@@ -90,18 +96,30 @@ class CategoryApiController
         ApiResponse::success('Category deleted successfully');
     }
 
-    private function getJsonInput(): array
+    private function requireAdmin(): void
     {
-        $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
+        $payload = AuthMiddleware::authenticate();
+        if (($payload['role'] ?? '') !== 'admin') {
+            ApiResponse::error('Forbidden', null, 403);
+        }
+    }
 
-        return is_array($data) ? $data : [];
+    private function requestData(): array
+    {
+        if (!empty($_POST)) {
+            return $_POST;
+        }
+
+        $raw = file_get_contents('php://input');
+        $json = json_decode($raw, true);
+
+        return is_array($json) ? $json : [];
     }
 
     private function validatePayload(array $data): array
     {
         $errors = [];
-        $name = trim((string)($data['name'] ?? ''));
+        $name = trim((string) ($data['name'] ?? ''));
 
         if ($name === '') {
             $errors['name'] = 'Tên danh mục không được để trống';
