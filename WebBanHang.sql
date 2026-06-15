@@ -6,6 +6,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `order_items`;
 DROP TABLE IF EXISTS `orders`;
+DROP TABLE IF EXISTS `payments`;
 DROP TABLE IF EXISTS `remember_tokens`;
 DROP TABLE IF EXISTS `email_verification_tokens`;
 DROP TABLE IF EXISTS `password_resets`;
@@ -81,6 +82,32 @@ CREATE TABLE `orders` (
   `status` enum('pending','confirmed','shipping','done','cancelled') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table: payments
+-- --------------------------------------------------------
+CREATE TABLE `payments` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `order_id` int unsigned NOT NULL,
+  `user_id` int unsigned NOT NULL,
+  `method` enum('cod','bank_transfer','wallet') NOT NULL DEFAULT 'cod',
+  `amount` decimal(15,0) NOT NULL DEFAULT 0,
+  `provider` varchar(100) DEFAULT NULL,
+  `transaction_code` varchar(100) DEFAULT NULL,
+  `status` enum('pending','completed','failed') NOT NULL DEFAULT 'pending',
+  `note` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_payments_order_id` (`order_id`),
+  KEY `idx_payments_user_id` (`user_id`),
+  CONSTRAINT `fk_payments_order`
+    FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`)
+    ON DELETE CASCADE,
+  CONSTRAINT `fk_payments_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+    ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------

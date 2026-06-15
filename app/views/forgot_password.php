@@ -4,6 +4,8 @@ $flash = ViewHelper::consumeFlash();
 $errors = $errors ?? $flash['errors'];
 $success = $success ?? $flash['success'];
 $old_data = $old_data ?? $flash['old_data'];
+$debugResetLink = $_SESSION['debug_reset_link'] ?? null;
+unset($_SESSION['debug_reset_link']);
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -75,6 +77,18 @@ $old_data = $old_data ?? $flash['old_data'];
         <h2 class="fw-bold mb-2">Khôi phục tài khoản</h2>
         <p class="text-muted mb-4">Điền email đã đăng ký để nhận liên kết đặt lại mật khẩu.</p>
         <?php require 'app/views/shares/flash.php'; ?>
+
+        <?php if (!empty($debugResetLink)): ?>
+            <div class="alert alert-info">
+                <div class="fw-bold mb-1">Link reset local</div>
+                <div class="mb-2">Môi trường local đã hiển thị trực tiếp link đặt lại mật khẩu:</div>
+                <div class="input-group">
+                    <input type="text" class="form-control" value="<?php echo htmlspecialchars($debugResetLink); ?>" readonly>
+                    <a href="<?php echo htmlspecialchars($debugResetLink); ?>" class="btn btn-outline-primary" target="_blank" rel="noopener">Mở link</a>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <form method="POST" action="/auth/forgotPassword">
             <div class="mb-3">
                 <label class="form-label fw-bold">Email</label>

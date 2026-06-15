@@ -1,28 +1,29 @@
 <?php
 
 require_once 'app/config/database.php';
+require_once 'app/libs/ApiRequest.php';
 require_once 'app/libs/ApiResponse.php';
-require_once 'app/libs/AuthHelper.php';
+require_once 'app/middleware/AuthMiddleware.php';
 require_once 'app/models/CartModel.php';
+require_once 'app/models/PaymentModel.php';
 
 class OrderApiController
 {
     private CartModel $cartModel;
+    private PaymentModel $paymentModel;
 
     public function __construct()
     {
         $db = (new Database())->getConnection();
         $this->cartModel = new CartModel($db);
+        $this->paymentModel = new PaymentModel($db);
     }
 
     public function index(): void
     {
-        if (!AuthHelper::isLoggedIn()) {
-            ApiResponse::error('Unauthenticated', null, 401);
-        }
+        $user = AuthMiddleware::user();
 
-        $user = AuthHelper::getCurrentUser();
-        if (AuthHelper::isAdmin()) {
+        if (($user['role'] ?? '') === 'admin') {
             $orders = $this->cartModel->getAllOrders();
             ApiResponse::success('Orders retrieved successfully', $this->attachItemsCount($orders));
         }
@@ -33,25 +34,20 @@ class OrderApiController
 
     public function show($id): void
     {
-        $id = (int) $id;
-        if ($id <= 0) {
+        $orderId = (int) $id;
+        if ($orderId <= 0) {
             ApiResponse::error('Validation failed', ['id' => 'Đơn hàng không hợp lệ'], 422);
         }
 
-        $order = $this->cartModel->getOrderById($id);
+        $order = $this->cartModel->getOrderById($orderId);
         if (!$order) {
             ApiResponse::error('Order not found', null, 404);
         }
 
-        if (!AuthHelper::isLoggedIn()) {
-            ApiResponse::error('Unauthenticated', null, 401);
-        }
-
-        if (!AuthHelper::isAdmin()) {
-            $user = AuthHelper::getCurrentUser();
+        $user = AuthMiddleware::user();
+        if (($user['role'] ?? '') !== 'admin') {
             $orderEmail = strtolower(trim((string) ($order->customer_email ?? '')));
             $userEmail = strtolower(trim((string) ($user['email'] ?? '')));
-
             if ($orderEmail === '' || $orderEmail !== $userEmail) {
                 ApiResponse::error('Forbidden', null, 403);
             }
@@ -59,15 +55,17 @@ class OrderApiController
 
         ApiResponse::success('Order retrieved successfully', [
             'order' => $order,
-            'items' => $this->cartModel->getOrderItems($id),
+            'items' => $this->cartModel->getOrderItems($orderId),
+            'payment' => $this->paymentModel->getPaymentByOrderId($orderId),
         ]);
     }
 
     public function store(): void
     {
-        $data = $this->getJsonInput();
+        $user = AuthMiddleware::user();
+        $data = ApiRequest::body();
         [$cartItems, $usedSessionCart, $hasExplicitItems] = $this->resolveOrderItems($data);
-        $payload = $this->resolveCustomerPayload($data);
+        $payload = $this->resolveCustomerPayload($data, $user);
         $errors = $this->validatePayload($payload, $cartItems);
 
         if (!empty($errors)) {
@@ -103,52 +101,93 @@ class OrderApiController
             $this->cartModel->clearCart();
         }
 
+        if (!empty($data['payment_method']) && strtolower((string) $data['payment_method']) !== 'cod') {
+            $paymentId = $this->paymentModel->create([
+                'order_id' => $orderId,
+                'user_id' => (int) $user['id'],
+                'method' => strtolower((string) $data['payment_method']),
+                'amount' => (int) $this->cartModel->getTotalPrice(),
+                'provider' => strtolower((string) $data['payment_method']),
+                'transaction_code' => 'MOCK-' . strtoupper(bin2hex(random_bytes(4))),
+                'status' => 'pending',
+                'note' => 'Mock payment created from order checkout',
+            ]);
+
+            ApiResponse::success('Order created successfully', [
+                'order_id' => $orderId,
+                'payment_id' => $paymentId,
+                'payment_status' => 'pending',
+            ], 201);
+        }
+
         ApiResponse::success('Order created successfully', [
             'order_id' => $orderId,
         ], 201);
     }
 
-    public function update($id): void
+    public function cancel($id): void
     {
-        if (!AuthHelper::isAdmin()) {
-            ApiResponse::error('Forbidden', null, 403);
-        }
-
-        $id = (int) $id;
-        if ($id <= 0) {
+        $user = AuthMiddleware::user();
+        $orderId = (int) $id;
+        if ($orderId <= 0) {
             ApiResponse::error('Validation failed', ['id' => 'Đơn hàng không hợp lệ'], 422);
         }
 
-        $data = $this->getJsonInput();
-        $status = trim((string) ($data['status'] ?? ''));
-        $paymentStatus = trim((string) ($data['payment_status'] ?? ''));
-
-        if ($status !== '') {
-            $this->cartModel->updateOrderStatus($id, $status);
+        $order = $this->cartModel->getOrderById($orderId);
+        if (!$order) {
+            ApiResponse::error('Order not found', null, 404);
         }
 
-        if ($paymentStatus !== '') {
-            $updated = $this->cartModel->updateOrderPaymentStatus($id, $paymentStatus);
-            if (!$updated) {
-                ApiResponse::error('Validation failed', ['payment_status' => 'Trạng thái thanh toán không hợp lệ'], 422);
+        if (($user['role'] ?? '') !== 'admin') {
+            $orderEmail = strtolower(trim((string) ($order->customer_email ?? '')));
+            $userEmail = strtolower(trim((string) ($user['email'] ?? '')));
+            if ($orderEmail === '' || $orderEmail !== $userEmail) {
+                ApiResponse::error('Forbidden', null, 403);
             }
         }
 
-        ApiResponse::success('Order updated successfully');
+        if (!in_array(($order->status ?? 'pending'), ['pending', 'confirmed'], true)) {
+            ApiResponse::error('Only pending or confirmed orders can be cancelled', null, 409);
+        }
+
+        $this->cartModel->updateOrderStatus($orderId, 'cancelled');
+        ApiResponse::success('Order cancelled successfully');
+    }
+
+    public function status($id): void
+    {
+        AuthMiddleware::admin();
+
+        $orderId = (int) $id;
+        if ($orderId <= 0) {
+            ApiResponse::error('Validation failed', ['id' => 'Đơn hàng không hợp lệ'], 422);
+        }
+
+        $data = ApiRequest::body();
+        $status = trim((string) ($data['status'] ?? ''));
+        if (!in_array($status, ['pending', 'confirmed', 'shipping', 'done', 'cancelled'], true)) {
+            ApiResponse::error('Validation failed', ['status' => 'Trạng thái không hợp lệ'], 422);
+        }
+
+        $this->cartModel->updateOrderStatus($orderId, $status);
+        ApiResponse::success('Order status updated successfully');
+    }
+
+    public function update($id): void
+    {
+        $this->status($id);
     }
 
     public function destroy($id): void
     {
-        if (!AuthHelper::isAdmin()) {
-            ApiResponse::error('Forbidden', null, 403);
-        }
+        AuthMiddleware::admin();
 
-        $id = (int) $id;
-        if ($id <= 0) {
+        $orderId = (int) $id;
+        if ($orderId <= 0) {
             ApiResponse::error('Validation failed', ['id' => 'Đơn hàng không hợp lệ'], 422);
         }
 
-        $deleted = $this->cartModel->deleteOrder($id);
+        $deleted = $this->cartModel->deleteOrder($orderId);
         if (!$deleted) {
             ApiResponse::error('Order deletion failed', null, 400);
         }
@@ -156,19 +195,20 @@ class OrderApiController
         ApiResponse::success('Order deleted successfully');
     }
 
-    private function resolveCustomerPayload(array $data): array
+    private function resolveCustomerPayload(array $data, array $user): array
     {
-        $currentUser = AuthHelper::isLoggedIn() ? AuthHelper::getCurrentUser() : null;
+        $paymentMethod = strtolower((string) ($data['payment_method'] ?? 'cod'));
+        if (!in_array($paymentMethod, ['cod', 'bank_transfer', 'wallet', 'banking', 'e_wallet', 'ewallet'], true)) {
+            $paymentMethod = 'cod';
+        }
 
         return [
-            'customer_name' => trim((string) ($data['customer_name'] ?? ($currentUser['name'] ?? ''))),
-            'customer_phone' => trim((string) ($data['customer_phone'] ?? '')),
-            'customer_email' => trim((string) ($data['customer_email'] ?? ($currentUser['email'] ?? ''))),
-            'customer_address' => trim((string) ($data['customer_address'] ?? '')),
+            'customer_name' => trim((string) ($data['customer_name'] ?? ($user['full_name'] ?? ''))),
+            'customer_phone' => trim((string) ($data['customer_phone'] ?? ($user['phone'] ?? ''))),
+            'customer_email' => trim((string) ($data['customer_email'] ?? ($user['email'] ?? ''))),
+            'customer_address' => trim((string) ($data['customer_address'] ?? ($user['address'] ?? ''))),
             'note' => trim((string) ($data['note'] ?? '')),
-            'payment_method' => in_array(($data['payment_method'] ?? 'cod'), ['cod', 'banking'], true)
-                ? (string) ($data['payment_method'] ?? 'cod')
-                : 'cod',
+            'payment_method' => $paymentMethod,
         ];
     }
 
@@ -206,14 +246,6 @@ class OrderApiController
         }
 
         return [[], false, false];
-    }
-
-    private function getJsonInput(): array
-    {
-        $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
-
-        return is_array($data) ? $data : [];
     }
 
     private function attachItemsCount(array $orders): array

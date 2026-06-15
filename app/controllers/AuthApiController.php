@@ -1,8 +1,11 @@
 <?php
 
+require_once 'app/libs/ApiRequest.php';
 require_once 'app/libs/ApiResponse.php';
-require_once 'app/libs/AuthHelper.php';
+require_once 'app/libs/EnvHelper.php';
+require_once 'app/libs/JwtAuth.php';
 require_once 'app/libs/MailHelper.php';
+require_once 'app/middleware/AuthMiddleware.php';
 require_once 'app/models/UserModel.php';
 
 class AuthApiController
@@ -16,7 +19,7 @@ class AuthApiController
 
     public function register(): void
     {
-        $data = $this->getJsonInput();
+        $data = ApiRequest::body();
         $errors = $this->validateRegisterPayload($data);
 
         if (!empty($errors)) {
@@ -44,6 +47,9 @@ class AuthApiController
         $this->userModel->createEmailVerificationToken($userId, (string) $data['email'], $selector, $tokenHash, $expiresAt);
 
         $verifyLink = MailHelper::baseUrl() . '/api/auth/verifyEmail?token=' . $selector . '.' . $validator;
+        $debugLink = $this->isLocalDebug()
+            ? $verifyLink
+            : null;
         $mailSent = MailHelper::send(
             (string) $data['email'],
             'Xác thực tài khoản My Store',
@@ -57,6 +63,7 @@ class AuthApiController
             [
                 'user_id' => $userId,
                 'email_verification_sent' => (bool) $mailSent,
+                'debug_verification_link' => $debugLink,
             ],
             201
         );
@@ -64,7 +71,7 @@ class AuthApiController
 
     public function login(): void
     {
-        $data = $this->getJsonInput();
+        $data = ApiRequest::body();
         $errors = $this->validateLoginPayload($data);
 
         if (!empty($errors)) {
@@ -85,54 +92,42 @@ class AuthApiController
             ApiResponse::error('Email hoặc mật khẩu không chính xác', null, 401);
         }
 
-        session_regenerate_id(true);
-        AuthHelper::setUserSession($user);
-
+        $tokenPayload = JwtAuth::issueUserToken($user, 60 * 60 * 24);
         if ($rememberMe) {
-            $this->issueRememberMeCookie((int) $user['id']);
+            $tokenPayload['expires_in'] = 60 * 60 * 24 * 7;
+            $tokenPayload['token'] = JwtAuth::encode([
+                'sub' => (int) $user['id'],
+                'uid' => (int) $user['id'],
+                'email' => strtolower((string) $user['email']),
+                'role' => (string) $user['role'],
+                'name' => (string) $user['full_name'],
+            ], 60 * 60 * 24 * 7);
+            $tokenPayload['expires_at'] = gmdate('c', time() + 60 * 60 * 24 * 7);
         }
 
-        ApiResponse::success('Đăng nhập thành công', $this->makeUserPayload($user));
+        ApiResponse::success('Đăng nhập thành công', [
+            'token' => $tokenPayload['token'],
+            'token_type' => $tokenPayload['token_type'],
+            'expires_in' => $tokenPayload['expires_in'],
+            'expires_at' => $tokenPayload['expires_at'],
+            'user' => $this->makeUserPayload($user),
+        ]);
     }
 
     public function logout(): void
     {
-        if (!empty($_COOKIE['remember_me'])) {
-            $parts = explode(':', $_COOKIE['remember_me'], 2);
-            if (count($parts) === 2) {
-                $token = $this->userModel->findRememberTokenBySelector($parts[0]);
-                if ($token) {
-                    $this->userModel->revokeRememberToken((int) $token['id']);
-                }
-            }
-
-            $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
-            setcookie('remember_me', '', time() - 3600, '/', '', $secure, true);
-        }
-
-        $_SESSION = [];
-        session_regenerate_id(true);
-
         ApiResponse::success('Đã đăng xuất thành công');
     }
 
     public function me(): void
     {
-        if (!AuthHelper::isLoggedIn()) {
-            ApiResponse::error('Unauthenticated', null, 401);
-        }
-
-        $user = $this->userModel->findById(AuthHelper::getUserId() ?? 0);
-        if (!$user) {
-            ApiResponse::error('User not found', null, 404);
-        }
-
+        $user = AuthMiddleware::user();
         ApiResponse::success('User retrieved successfully', $this->makeUserPayload($user));
     }
 
     public function verifyEmail(): void
     {
-        $data = $this->getJsonInput();
+        $data = ApiRequest::body();
         $token = trim((string) ($data['token'] ?? ($_GET['token'] ?? '')));
         $parts = explode('.', $token, 2);
 
@@ -160,14 +155,7 @@ class AuthApiController
 
     public function resendVerification(): void
     {
-        if (!AuthHelper::isLoggedIn()) {
-            ApiResponse::error('Unauthenticated', null, 401);
-        }
-
-        $user = $this->userModel->findById(AuthHelper::getUserId() ?? 0);
-        if (!$user) {
-            ApiResponse::error('User not found', null, 404);
-        }
+        $user = AuthMiddleware::user();
 
         if (!empty($user['email_verified_at'])) {
             ApiResponse::error('Tài khoản đã được xác thực email', null, 422);
@@ -177,18 +165,23 @@ class AuthApiController
         $this->userModel->createEmailVerificationToken((int) $user['id'], $user['email'], $selector, $tokenHash, $expiresAt);
 
         $verifyLink = MailHelper::baseUrl() . '/api/auth/verifyEmail?token=' . $selector . '.' . $validator;
+        $debugLink = $this->isLocalDebug()
+            ? $verifyLink
+            : null;
         MailHelper::send(
             $user['email'],
             'Xác thực tài khoản My Store',
             MailHelper::verificationEmail($user['full_name'], $verifyLink)
         );
 
-        ApiResponse::success('Đã gửi lại email xác thực');
+        ApiResponse::success('Đã gửi lại email xác thực', [
+            'debug_verification_link' => $debugLink,
+        ]);
     }
 
     public function forgotPassword(): void
     {
-        $data = $this->getJsonInput();
+        $data = ApiRequest::body();
         $email = trim((string) ($data['email'] ?? ''));
 
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -213,7 +206,7 @@ class AuthApiController
 
     public function resetPassword(): void
     {
-        $data = $this->getJsonInput();
+        $data = ApiRequest::body();
         $token = trim((string) ($data['token'] ?? ($_GET['token'] ?? '')));
         $password = (string) ($data['password'] ?? '');
         $confirmPassword = (string) ($data['confirm_password'] ?? '');
@@ -254,14 +247,6 @@ class AuthApiController
         $this->userModel->revokeRememberTokenByUserId((int) $record['user_id']);
 
         ApiResponse::success('Đặt lại mật khẩu thành công');
-    }
-
-    private function getJsonInput(): array
-    {
-        $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
-
-        return is_array($data) ? $data : [];
     }
 
     private function validateRegisterPayload(array $data): array
@@ -329,28 +314,6 @@ class AuthApiController
         return [$selector, $validator, $tokenHash, $expiresAt];
     }
 
-    private function issueRememberMeCookie(int $userId): void
-    {
-        $this->userModel->revokeRememberTokenByUserId($userId);
-
-        [$selector, $validator, $tokenHash, $expiresAt] = $this->generateTokenPair(32, '+30 days');
-        $this->userModel->createRememberToken($userId, $selector, $tokenHash, $expiresAt);
-
-        $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
-        setcookie(
-            'remember_me',
-            $selector . ':' . $validator,
-            [
-                'expires' => strtotime($expiresAt),
-                'path' => '/',
-                'domain' => '',
-                'secure' => $secure,
-                'httponly' => true,
-                'samesite' => 'Lax',
-            ]
-        );
-    }
-
     private function makeUserPayload(array $user): array
     {
         return [
@@ -364,5 +327,10 @@ class AuthApiController
             'avatar' => $user['avatar'] ?? null,
             'email_verified_at' => $user['email_verified_at'] ?? null,
         ];
+    }
+
+    private function isLocalDebug(): bool
+    {
+        return in_array(strtolower((string) EnvHelper::get('APP_ENV', 'local')), ['local', 'dev', 'development'], true);
     }
 }

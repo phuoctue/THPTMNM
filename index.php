@@ -17,147 +17,255 @@ if (!empty($segments) && $segments[0] === 'api') {
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
         http_response_code(204);
         exit;
     }
 
-    $apiOffset = 1;
-    if (isset($segments[1]) && preg_match('/^v\d+$/i', $segments[1])) {
-        $apiOffset = 2;
+    $apiParts = array_values(array_slice($segments, 1));
+    if (isset($apiParts[0]) && preg_match('/^v\d+$/i', $apiParts[0])) {
+        array_shift($apiParts);
     }
 
-    $resource = strtolower($segments[$apiOffset] ?? '');
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    $resource = strtolower($apiParts[0] ?? '');
+    $second = strtolower($apiParts[1] ?? '');
+    $third = strtolower($apiParts[2] ?? '');
 
-    $resourceMap = [
-        'product' => 'ProductApiController',
+    $controllerName = null;
+    $action = null;
+    $params = [];
+
+    $loadController = static function (string $name) {
+        $controllerFile = 'app/controllers/' . $name . '.php';
+        if (!file_exists($controllerFile)) {
+            return [null, null];
+        }
+
+        require_once $controllerFile;
+        return [$controllerFile, $name];
+    };
+
+    $dispatchMap = [
         'products' => 'ProductApiController',
-        'category' => 'CategoryApiController',
+        'product' => 'ProductApiController',
         'categories' => 'CategoryApiController',
+        'category' => 'CategoryApiController',
         'cart' => 'CartApiController',
-        'order' => 'OrderApiController',
         'orders' => 'OrderApiController',
-        'auth' => 'AuthApiController',
-        'user' => 'UserApiController',
+        'order' => 'OrderApiController',
+        'payments' => 'PaymentsApiController',
+        'payment' => 'PaymentsApiController',
         'users' => 'UserApiController',
-        'profile' => 'ProfileApiController',
+        'user' => 'UserApiController',
         'dashboard' => 'DashboardApiController',
         'home' => 'HomeApiController',
+        'auth' => 'AuthApiController',
+        'profile' => 'ProfileApiController',
     ];
 
-    if ($resource === '' || !isset($resourceMap[$resource])) {
+    if (in_array($resource, ['register', 'login', 'logout', 'forgot-password', 'reset-password', 'verify-email', 'resend-verification'], true)) {
+        $controllerName = 'AuthApiController';
+        $action = str_replace('-', '', lcfirst(ucwords($resource, '-')));
+    } elseif ($resource === 'me' || $resource === 'change-password' || $resource === 'profile') {
+        $controllerName = 'ProfileApiController';
+        if ($resource === 'profile') {
+            $action = $method === 'GET' ? 'index' : 'update';
+        } elseif ($resource === 'change-password') {
+            $action = 'changePassword';
+        } elseif ($resource === 'me') {
+            $controllerName = 'AuthApiController';
+            $action = 'me';
+        }
+    } elseif (isset($dispatchMap[$resource])) {
+        $controllerName = $dispatchMap[$resource];
+    }
+
+    if ($controllerName === null) {
         http_response_code(404);
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['success' => false, 'message' => 'Controller not found']);
+        echo json_encode(['success' => false, 'message' => 'Controller not found'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
-    $controllerName = $resourceMap[$resource];
-    $controllerFile = 'app/controllers/' . $controllerName . '.php';
-    $controllerClass = $controllerName;
-
-    if (!file_exists($controllerFile)) {
+    [$controllerFile, $controllerClass] = $loadController($controllerName);
+    if ($controllerFile === null || !class_exists($controllerClass)) {
         http_response_code(404);
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['success' => false, 'message' => 'Controller not found']);
-        exit;
-    }
-
-    require_once $controllerFile;
-
-    if (!class_exists($controllerClass)) {
-        http_response_code(404);
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['success' => false, 'message' => 'Controller class not found']);
+        echo json_encode(['success' => false, 'message' => 'Controller not found'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
     $controller = new $controllerClass();
-    $action = null;
-    $params = [];
-    $id = $segments[$apiOffset + 1] ?? null;
-    $tail = $segments[$apiOffset + 2] ?? null;
 
-    if (in_array($resource, ['auth', 'profile', 'dashboard', 'home'], true)) {
-        $action = $id !== null ? $id : 'index';
-        $params = array_slice($segments, $apiOffset + 2);
-    } elseif ($resource === 'cart') {
-        if ($id === 'clear') {
-            $action = 'clear';
-        } else {
-            switch ($method) {
-                case 'GET':
-                    $action = 'index';
-                    break;
-                case 'POST':
-                    $action = 'store';
-                    break;
-                case 'PUT':
-                case 'PATCH':
-                    $action = $id !== null ? 'update' : null;
-                    break;
-                case 'DELETE':
-                    $action = $id !== null ? 'destroy' : 'clear';
-                    break;
-                default:
-                    $action = null;
-                    break;
+    switch ($controllerName) {
+        case 'ProductApiController':
+            if (in_array($second, ['search', 'filter', 'sort'], true)) {
+                $action = $second;
+            } elseif ($method === 'GET' && $second !== '') {
+                $action = 'show';
+                $params = [(int) $second];
+            } elseif ($method === 'POST' && $second === '') {
+                $action = 'store';
+            } elseif (in_array($method, ['PUT', 'PATCH'], true) && $second !== '') {
+                $action = 'update';
+                $params = [(int) $second];
+            } elseif ($method === 'DELETE' && $second !== '') {
+                $action = 'destroy';
+                $params = [(int) $second];
+            } else {
+                $action = 'index';
             }
+            break;
 
-            if (in_array($method, ['PUT', 'PATCH', 'DELETE'], true) && $id !== null && $id !== 'clear') {
-                $params = [$id];
+        case 'CategoryApiController':
+            if ($method === 'GET' && $second !== '') {
+                $action = 'show';
+                $params = [(int) $second];
+            } elseif ($method === 'POST' && $second === '') {
+                $action = 'store';
+            } elseif (in_array($method, ['PUT', 'PATCH'], true) && $second !== '') {
+                $action = 'update';
+                $params = [(int) $second];
+            } elseif ($method === 'DELETE' && $second !== '') {
+                $action = 'destroy';
+                $params = [(int) $second];
+            } else {
+                $action = 'index';
             }
-        }
-    } elseif ($resource === 'order' || $resource === 'orders') {
-        switch ($method) {
-            case 'GET':
-                $action = $id !== null ? 'show' : 'index';
-                break;
-            case 'POST':
+            break;
+
+        case 'CartApiController':
+            if ($second === 'add' && $method === 'POST') {
+                $action = 'add';
+            } elseif ($second === 'update' && in_array($method, ['PUT', 'PATCH'], true)) {
+                $action = 'update';
+            } elseif ($second === 'clear' && $method === 'DELETE') {
+                $action = 'clear';
+            } elseif ($second === 'total' && $method === 'GET') {
+                $action = 'total';
+            } elseif ($second !== '' && $method === 'DELETE') {
+                $action = 'destroy';
+                $params = [(int) $second];
+            } elseif ($method === 'GET') {
+                $action = 'index';
+            } elseif ($method === 'POST') {
+                $action = 'add';
+            } else {
+                $action = 'index';
+            }
+            break;
+
+        case 'OrderApiController':
+            if ($method === 'POST' && $second === '') {
                 $action = 'store';
-                break;
-            case 'PUT':
-            case 'PATCH':
-                $action = $id !== null ? 'update' : null;
-                $params = $id !== null ? [$id] : [];
-                break;
-            case 'DELETE':
-                $action = $id !== null ? 'destroy' : null;
-                $params = $id !== null ? [$id] : [];
-                break;
-            default:
-                $action = null;
-                break;
-        }
-    } else {
-        switch ($method) {
-            case 'GET':
-                $action = $id !== null ? 'show' : 'index';
-                break;
-            case 'POST':
+            } elseif ($method === 'GET' && $second !== '' && $third === '') {
+                $action = 'show';
+                $params = [(int) $second];
+            } elseif ($method === 'PUT' && $second !== '' && $third === 'cancel') {
+                $action = 'cancel';
+                $params = [(int) $second];
+            } elseif (in_array($method, ['PUT', 'PATCH'], true) && $second !== '' && $third === 'status') {
+                $action = 'status';
+                $params = [(int) $second];
+            } elseif ($method === 'DELETE' && $second !== '') {
+                $action = 'destroy';
+                $params = [(int) $second];
+            } else {
+                $action = 'index';
+            }
+            break;
+
+        case 'PaymentsApiController':
+            if ($method === 'POST' && $second === '') {
                 $action = 'store';
-                break;
-            case 'PUT':
-            case 'PATCH':
-                $action = $id !== null ? 'update' : null;
-                $params = $id !== null ? [$id] : [];
-                break;
-            case 'DELETE':
-                $action = $id !== null ? 'destroy' : null;
-                $params = $id !== null ? [$id] : [];
-                break;
-            default:
+            } elseif (in_array($method, ['PUT', 'PATCH'], true) && $second !== '' && $third === 'status') {
+                $action = 'status';
+                $params = [(int) $second];
+            } else {
                 $action = null;
-                break;
-        }
+            }
+            break;
+
+        case 'UserApiController':
+            if ($method === 'GET' && $second !== '') {
+                $action = 'show';
+                $params = [(int) $second];
+            } elseif ($method === 'POST' && $second === '') {
+                $action = 'store';
+            } elseif (in_array($method, ['PUT', 'PATCH'], true) && $second !== '') {
+                $action = 'update';
+                $params = [(int) $second];
+            } elseif ($method === 'DELETE' && $second !== '') {
+                $action = 'destroy';
+                $params = [(int) $second];
+            } else {
+                $action = 'index';
+            }
+            break;
+
+        case 'AuthApiController':
+            if ($action === null) {
+                if ($resource === 'auth') {
+                    $authAliases = [
+                        'register' => 'register',
+                        'login' => 'login',
+                        'logout' => 'logout',
+                        'forgotpassword' => 'forgotPassword',
+                        'resetpassword' => 'resetPassword',
+                        'verifyemail' => 'verifyEmail',
+                        'resendverification' => 'resendVerification',
+                    ];
+                    $action = $authAliases[$second] ?? ($second !== '' ? str_replace('-', '', lcfirst(ucwords($second, '-'))) : 'index');
+                }
+                if ($action === null || $action === '') {
+                    $action = $resource !== 'auth'
+                        ? str_replace('-', '', lcfirst(ucwords($resource, '-')))
+                        : 'index';
+                }
+            }
+            break;
+
+        case 'ProfileApiController':
+            if ($resource === 'profile') {
+                $action = $method === 'GET' ? 'index' : 'update';
+            } elseif ($resource === 'change-password') {
+                $action = 'changePassword';
+            } elseif ($resource === 'orders') {
+                $action = 'orders';
+            } else {
+                $action = $second !== '' ? $second : 'index';
+            }
+            break;
+
+        default:
+            if ($method === 'GET') {
+                $action = $second !== '' ? 'show' : 'index';
+                if ($second !== '') {
+                    $params = [(int) $second];
+                }
+            } elseif ($method === 'POST') {
+                $action = 'store';
+            } elseif (in_array($method, ['PUT', 'PATCH'], true)) {
+                $action = $second !== '' ? 'update' : null;
+                if ($second !== '') {
+                    $params = [(int) $second];
+                }
+            } elseif ($method === 'DELETE') {
+                $action = $second !== '' ? 'destroy' : null;
+                if ($second !== '') {
+                    $params = [(int) $second];
+                }
+            }
+            break;
     }
 
     if ($action === null || !method_exists($controller, $action)) {
         http_response_code(405);
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['success' => false, 'message' => 'Method Not Allowed']);
+        echo json_encode(['success' => false, 'message' => 'Method Not Allowed'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 

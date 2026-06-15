@@ -47,9 +47,9 @@ class CartController {
 
         $this->cartModel->addItem(
             $productId,
-            $product->name,
-            (int)$product->price,
-            $product->image ?? '',
+            (string)($product['name'] ?? ''),
+            (int)($product['price'] ?? 0),
+            (string)($product['image'] ?? ''),
             $qty
         );
 

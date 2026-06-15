@@ -1,5 +1,37 @@
 <?php include 'app/views/shares/header.php'; ?>
 
+<?php
+if (!function_exists('product_form_value')) {
+    function product_form_value($product, string $key, mixed $default = null): mixed
+    {
+        if (is_array($product) && array_key_exists($key, $product)) {
+            return $product[$key];
+        }
+
+        if (is_object($product) && isset($product->{$key})) {
+            return $product->{$key};
+        }
+
+        return $default;
+    }
+}
+
+if (!function_exists('category_form_value')) {
+    function category_form_value($category, string $key, mixed $default = null): mixed
+    {
+        if (is_array($category) && array_key_exists($key, $category)) {
+            return $category[$key];
+        }
+
+        if (is_object($category) && isset($category->{$key})) {
+            return $category->{$key};
+        }
+
+        return $default;
+    }
+}
+?>
+
 <style>
 .form-card {
     background: #fff;
@@ -24,60 +56,48 @@
 <div class="form-card">
     <h1><i class="fas fa-edit"></i> Sửa sản phẩm</h1>
 
-    <form method="POST"
-          action="/Product/update"
-          enctype="multipart/form-data">
-
-        <input type="hidden" name="id"
-               value="<?php echo $product->id; ?>">
-        <input type="hidden" name="existing_image"
-               value="<?php echo htmlspecialchars($product->image); ?>">
+    <form method="POST" action="/Product/update" enctype="multipart/form-data">
+        <input type="hidden" name="id" value="<?php echo (int) product_form_value($product, 'id', 0); ?>">
+        <input type="hidden" name="existing_image" value="<?php echo htmlspecialchars((string) product_form_value($product, 'image', '')); ?>">
 
         <div class="form-group">
             <label><i class="fas fa-tag mr-1 text-primary"></i> Tên sản phẩm</label>
-            <input type="text" name="name" class="form-control"
-                   value="<?php echo htmlspecialchars($product->name); ?>" required>
+            <input type="text" name="name" class="form-control" value="<?php echo htmlspecialchars((string) product_form_value($product, 'name', '')); ?>" required>
         </div>
 
         <div class="form-group">
             <label><i class="fas fa-align-left mr-1 text-primary"></i> Mô tả</label>
-            <textarea name="description" class="form-control" rows="3"><?php echo htmlspecialchars($product->description); ?></textarea>
+            <textarea name="description" class="form-control" rows="3"><?php echo htmlspecialchars((string) product_form_value($product, 'description', '')); ?></textarea>
         </div>
 
         <div class="form-row">
             <div class="form-group col-md-6">
                 <label><i class="fas fa-dollar-sign mr-1 text-primary"></i> Giá (₫)</label>
-                <input type="number" name="price" class="form-control"
-                       value="<?php echo $product->price; ?>" min="0" required>
+                <input type="number" name="price" class="form-control" value="<?php echo htmlspecialchars((string) product_form_value($product, 'price', 0)); ?>" min="0" required>
             </div>
 
             <div class="form-group col-md-6">
                 <label><i class="fas fa-layer-group mr-1 text-primary"></i> Danh mục</label>
                 <select name="category_id" class="form-control">
                     <?php foreach ($categories as $cat): ?>
-                        <option value="<?php echo $cat->id; ?>"
-                            <?php if ($cat->id == $product->category_id) echo 'selected'; ?>>
-                            <?php echo htmlspecialchars($cat->name); ?>
+                        <option value="<?php echo (int) category_form_value($cat, 'id', 0); ?>" <?php if ((string) category_form_value($cat, 'id', 0) === (string) product_form_value($product, 'category_id', '')) echo 'selected'; ?>>
+                            <?php echo htmlspecialchars((string) category_form_value($cat, 'name', '')); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
             </div>
         </div>
 
-        <!-- Hình ảnh hiện tại -->
         <div class="form-group">
             <label><i class="fas fa-image mr-1 text-primary"></i> Hình ảnh</label>
-
-            <?php if (!empty($product->image) && file_exists($product->image)): ?>
+            <?php if (!empty((string) product_form_value($product, 'image', '')) && file_exists((string) product_form_value($product, 'image', ''))): ?>
                 <div class="mb-2">
                     <p class="text-muted small mb-1">Hình hiện tại:</p>
-                    <img src="/<?php echo htmlspecialchars($product->image); ?>"
-                         class="img-current" alt="Current image">
+                    <img src="/<?php echo htmlspecialchars((string) product_form_value($product, 'image', '')); ?>" class="img-current" alt="Current image">
                 </div>
             <?php endif; ?>
 
-            <input type="file" name="image" id="imageInput"
-                   class="form-control-file" accept="image/*">
+            <input type="file" name="image" id="imageInput" class="form-control-file" accept="image/*">
             <small class="text-muted">Để trống nếu không muốn thay đổi hình.</small>
 
             <div id="imagePreviewBox">
@@ -94,7 +114,6 @@
                 <i class="fas fa-arrow-left mr-1"></i> Quay lại
             </a>
         </div>
-
     </form>
 </div>
 

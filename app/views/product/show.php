@@ -1,4 +1,21 @@
-﻿<?php include 'app/views/shares/header.php'; ?>
+<?php include 'app/views/shares/header.php'; ?>
+
+<?php
+if (!function_exists('product_detail_value')) {
+    function product_detail_value($product, string $key, mixed $default = null): mixed
+    {
+        if (is_array($product) && array_key_exists($key, $product)) {
+            return $product[$key];
+        }
+
+        if (is_object($product) && isset($product->{$key})) {
+            return $product->{$key};
+        }
+
+        return $default;
+    }
+}
+?>
 
 <style>
 .detail-card {
@@ -49,35 +66,35 @@
 
 <div class="detail-card">
     <div class="detail-card__img-wrap">
-        <?php if (!empty($product->image) && file_exists($product->image)): ?>
-            <img src="/<?php echo htmlspecialchars($product->image); ?>" alt="<?php echo htmlspecialchars($product->name); ?>">
+        <?php if (!empty((string) product_detail_value($product, 'image', '')) && file_exists((string) product_detail_value($product, 'image', ''))): ?>
+            <img src="/<?php echo htmlspecialchars((string) product_detail_value($product, 'image', '')); ?>" alt="<?php echo htmlspecialchars((string) product_detail_value($product, 'name', '')); ?>">
         <?php else: ?>
             <div class="detail-card__img-placeholder"><i class="fas fa-image"></i></div>
         <?php endif; ?>
     </div>
 
     <div class="detail-card__body">
-        <div class="detail-card__id"># <?php echo $product->id; ?></div>
-        <div class="detail-card__category"><?php echo htmlspecialchars($product->category_name ?? 'Chưa phân loại'); ?></div>
-        <div class="detail-card__name"><?php echo htmlspecialchars($product->name); ?></div>
-        <div class="detail-card__price"><?php echo number_format($product->price, 0, ',', '.'); ?> đ</div>
-        <div class="detail-card__desc"><?php echo nl2br(htmlspecialchars($product->description)); ?></div>
+        <div class="detail-card__id"># <?php echo (int) product_detail_value($product, 'id', 0); ?></div>
+        <div class="detail-card__category"><?php echo htmlspecialchars((string) product_detail_value($product, 'category_name', 'Chưa phân loại')); ?></div>
+        <div class="detail-card__name"><?php echo htmlspecialchars((string) product_detail_value($product, 'name', '')); ?></div>
+        <div class="detail-card__price"><?php echo number_format((float) product_detail_value($product, 'price', 0), 0, ',', '.'); ?> đ</div>
+        <div class="detail-card__desc"><?php echo nl2br(htmlspecialchars((string) product_detail_value($product, 'description', ''))); ?></div>
 
         <div class="d-flex flex-wrap" style="gap:.75rem">
             <form action="/Cart/add" method="POST" class="mb-0">
-                <input type="hidden" name="product_id" value="<?php echo (int)$product->id; ?>">
+                <input type="hidden" name="product_id" value="<?php echo (int) product_detail_value($product, 'id', 0); ?>">
                 <input type="hidden" name="quantity" value="1">
                 <button type="submit" class="btn btn-success">
                     <i class="fas fa-cart-plus mr-1"></i> Thêm vào giỏ
                 </button>
             </form>
-            <a href="/Product/edit/<?php echo $product->id; ?>" class="btn btn-warning">
+            <a href="/Product/edit/<?php echo (int) product_detail_value($product, 'id', 0); ?>" class="btn btn-warning">
                 <i class="fas fa-edit mr-1"></i> Chỉnh sửa
             </a>
             <a href="/Product" class="btn btn-outline-secondary">
                 <i class="fas fa-arrow-left mr-1"></i> Quay lại
             </a>
-            <a href="/Product/delete/<?php echo $product->id; ?>" class="btn btn-danger ml-auto">
+            <a href="/Product/delete/<?php echo (int) product_detail_value($product, 'id', 0); ?>" class="btn btn-danger ml-auto">
                 <i class="fas fa-trash mr-1"></i> Xóa
             </a>
         </div>
@@ -85,5 +102,3 @@
 </div>
 
 <?php include 'app/views/shares/footer.php'; ?>
-
-

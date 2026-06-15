@@ -7,6 +7,8 @@ $user = AuthHelper::getCurrentUser();
 $flash = ViewHelper::consumeFlash();
 $errors = $errors ?? $flash['errors'];
 $success = $success ?? $flash['success'];
+$debugVerificationLink = $_SESSION['debug_verification_link'] ?? null;
+unset($_SESSION['debug_verification_link']);
 ?>
 <?php require_once 'app/views/shares/header.php'; ?>
 
@@ -23,6 +25,17 @@ $success = $success ?? $flash['success'];
                     Tài khoản <strong><?php echo htmlspecialchars($user['email']); ?></strong> hiện đang <strong>chưa xác thực email</strong>.
                     Nếu bạn đang test local, hãy bấm nút bên dưới để gửi lại email và mở link xác thực trong cửa sổ mail tester của bạn.
                 </div>
+
+                <?php if (!empty($debugVerificationLink)): ?>
+                    <div class="alert alert-info">
+                        <div class="fw-bold mb-1">Link xác thực local</div>
+                        <div class="mb-2">Do đang chạy môi trường local nên mình đã hiển thị trực tiếp link xác thực bên dưới:</div>
+                        <div class="input-group">
+                            <input type="text" class="form-control" value="<?php echo htmlspecialchars($debugVerificationLink); ?>" readonly>
+                            <a class="btn btn-outline-primary" href="<?php echo htmlspecialchars($debugVerificationLink); ?>" target="_blank" rel="noopener">Mở link</a>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">

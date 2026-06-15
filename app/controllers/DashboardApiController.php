@@ -2,7 +2,7 @@
 
 require_once 'app/config/database.php';
 require_once 'app/libs/ApiResponse.php';
-require_once 'app/libs/AuthHelper.php';
+require_once 'app/middleware/AuthMiddleware.php';
 require_once 'app/models/DashboardModel.php';
 
 class DashboardApiController
@@ -17,9 +17,7 @@ class DashboardApiController
 
     public function index(): void
     {
-        if (!AuthHelper::isAdmin()) {
-            ApiResponse::error('Forbidden', null, 403);
-        }
+        AuthMiddleware::admin();
 
         ApiResponse::success('Dashboard retrieved successfully', [
             'summary' => $this->dashboardModel->getSummary(),

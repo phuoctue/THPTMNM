@@ -5,6 +5,7 @@
  */
 
 require_once 'app/libs/AuthHelper.php';
+require_once 'app/libs/EnvHelper.php';
 require_once 'app/libs/MailHelper.php';
 require_once 'app/models/UserModel.php';
 
@@ -120,6 +121,9 @@ class AuthController
         $this->userModel->createEmailVerificationToken($userId, $email, $selector, $tokenHash, $expiresAt);
 
         $verifyLink = MailHelper::baseUrl() . '/auth/verifyEmail/' . $selector . '.' . $validator;
+        if ($this->isLocalDebug()) {
+            $_SESSION['debug_verification_link'] = $verifyLink;
+        }
         $mailSent = MailHelper::send(
             $email,
             'Xác thực tài khoản My Store',
@@ -282,6 +286,9 @@ class AuthController
         $this->userModel->createEmailVerificationToken((int) $user['id'], $user['email'], $selector, $tokenHash, $expiresAt);
 
         $verifyLink = MailHelper::baseUrl() . '/auth/verifyEmail/' . $selector . '.' . $validator;
+        if ($this->isLocalDebug()) {
+            $_SESSION['debug_verification_link'] = $verifyLink;
+        }
         MailHelper::send(
             $user['email'],
             'Xác thực tài khoản My Store',
@@ -350,6 +357,9 @@ class AuthController
             $this->userModel->createPasswordResetToken((int) $user['id'], $email, $selector, $tokenHash, $expiresAt);
 
             $resetLink = MailHelper::baseUrl() . '/auth/resetPassword/' . $selector . '.' . $validator;
+            if ($this->isLocalDebug()) {
+                $_SESSION['debug_reset_link'] = $resetLink;
+            }
             MailHelper::send(
                 $user['email'],
                 'Đặt lại mật khẩu My Store',
@@ -483,5 +493,10 @@ class AuthController
         unset($_SESSION['errors'], $_SESSION['success'], $_SESSION['old_data']);
 
         return $flash;
+    }
+
+    private function isLocalDebug(): bool
+    {
+        return in_array(strtolower((string) EnvHelper::get('APP_ENV', 'local')), ['local', 'dev', 'development'], true);
     }
 }

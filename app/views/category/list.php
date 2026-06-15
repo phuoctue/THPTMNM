@@ -1,4 +1,21 @@
-﻿<?php include 'app/views/shares/header.php'; ?>
+<?php include 'app/views/shares/header.php'; ?>
+
+<?php
+if (!function_exists('category_value')) {
+    function category_value($category, string $key, mixed $default = null): mixed
+    {
+        if (is_array($category) && array_key_exists($key, $category)) {
+            return $category[$key];
+        }
+
+        if (is_object($category) && isset($category->{$key})) {
+            return $category->{$key};
+        }
+
+        return $default;
+    }
+}
+?>
 
 <style>
 .cat-table-card {
@@ -74,19 +91,18 @@
             <tbody>
                 <?php foreach ($categories as $cat): ?>
                 <tr>
-                    <td><span class="badge-cat"><?php echo $cat->id; ?></span></td>
-                    <td class="font-weight-700"><?php echo htmlspecialchars($cat->name); ?></td>
+                    <td><span class="badge-cat"><?php echo (int) category_value($cat, 'id', 0); ?></span></td>
+                    <td class="font-weight-700"><?php echo htmlspecialchars((string) category_value($cat, 'name', '')); ?></td>
                     <td class="text-muted" style="font-size:.9rem">
-                        <?php echo htmlspecialchars($cat->description ?? '—'); ?>
+                        <?php echo htmlspecialchars((string) category_value($cat, 'description', '—')); ?>
                     </td>
                     <td>
-                        <a href="/Category/edit/<?php echo $cat->id; ?>"
+                        <a href="/Category/edit/<?php echo (int) category_value($cat, 'id', 0); ?>"
                            class="btn btn-warning btn-sm mr-1">
                             <i class="fas fa-edit"></i> Sửa
                         </a>
-                        <a href="/Category/delete/<?php echo $cat->id; ?>"
-                           class="btn btn-danger btn-sm"
-                          >
+                        <a href="/Category/delete/<?php echo (int) category_value($cat, 'id', 0); ?>"
+                           class="btn btn-danger btn-sm">
                             <i class="fas fa-trash"></i>
                         </a>
                     </td>
@@ -98,4 +114,3 @@
 <?php endif; ?>
 
 <?php include 'app/views/shares/footer.php'; ?>
-

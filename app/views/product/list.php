@@ -1,5 +1,30 @@
 ﻿<?php include 'app/views/shares/header.php'; ?>
 
+<?php
+if (!function_exists('product_value')) {
+    function product_value($product, string $key, mixed $default = null): mixed
+    {
+        if (is_array($product) && array_key_exists($key, $product)) {
+            return $product[$key];
+        }
+
+        if (is_object($product) && isset($product->{$key})) {
+            return $product->{$key};
+        }
+
+        return $default;
+    }
+}
+
+if (!function_exists('product_image_exists')) {
+    function product_image_exists($product): bool
+    {
+        $image = (string) product_value($product, 'image', '');
+        return $image !== '' && file_exists($image);
+    }
+}
+?>
+
 <style>
 /* ── Page title ──────────────────────────────────────────────────────── */
 .page-title {
@@ -348,9 +373,9 @@ $slideGradients = [
 
             <!-- Product image -->
             <div class="slide__img-col">
-                <?php if (!empty($sp->image) && file_exists($sp->image)): ?>
-                    <img src="/<?php echo htmlspecialchars($sp->image); ?>"
-                         alt="<?php echo htmlspecialchars($sp->name); ?>"
+                <?php if (product_image_exists($sp)): ?>
+                    <img src="/<?php echo htmlspecialchars(product_value($sp, 'image', '')); ?>"
+                         alt="<?php echo htmlspecialchars(product_value($sp, 'name', '')); ?>"
                          class="slide__img">
                 <?php else: ?>
                     <div class="slide__img-placeholder"><i class="fas fa-box-open"></i></div>
@@ -361,15 +386,15 @@ $slideGradients = [
             <div class="slide__body">
                 <div class="slide__cat">
                     <i class="fas fa-tag"></i>
-                    <?php echo htmlspecialchars($sp->category_name ?? 'Sản phẩm nổi bật'); ?>
+                    <?php echo htmlspecialchars(product_value($sp, 'category_name', 'Sản phẩm nổi bật')); ?>
                 </div>
-                <div class="slide__name"><?php echo htmlspecialchars($sp->name); ?></div>
+                <div class="slide__name"><?php echo htmlspecialchars(product_value($sp, 'name', '')); ?></div>
                 <div class="slide__price">
-                    <?php echo number_format($sp->price, 0, ',', '.'); ?>
+                    <?php echo number_format((float) product_value($sp, 'price', 0), 0, ',', '.'); ?>
                     <small>₫</small>
                 </div>
                 <div class="slide__actions">
-                    <a href="/Product/show/<?php echo $sp->id; ?>"
+                    <a href="/Product/show/<?php echo product_value($sp, 'id', ''); ?>"
                        class="slide__btn-primary">
                         <i class="fas fa-eye"></i> Xem chi tiết
                     </a>
@@ -505,15 +530,15 @@ $slideGradients = [
     <div class="product-grid">
         <?php foreach ($products as $product): ?>
         <div class="product-card">
-        <?php if (!empty($product->image) && file_exists($product->image)): ?>
-    <a href="/Product/show/<?php echo $product->id; ?>" 
+        <?php if (product_image_exists($product)): ?>
+    <a href="/Product/show/<?php echo product_value($product, 'id', ''); ?>" 
        class="product-card__img-wrap">
-        <img src="/<?php echo htmlspecialchars($product->image); ?>"
-             alt="<?php echo htmlspecialchars($product->name); ?>"
+        <img src="/<?php echo htmlspecialchars(product_value($product, 'image', '')); ?>"
+             alt="<?php echo htmlspecialchars(product_value($product, 'name', '')); ?>"
              class="product-card__img">
     </a>
 <?php else: ?>
-    <a href="/Product/show/<?php echo $product->id; ?>" 
+    <a href="/Product/show/<?php echo product_value($product, 'id', ''); ?>" 
        class="product-card__img-placeholder">
         <i class="fas fa-image"></i>
     </a>
@@ -521,31 +546,31 @@ $slideGradients = [
 
             <div class="product-card__body">
                 <div class="product-card__category">
-                    <?php echo htmlspecialchars($product->category_name ?? 'Chưa phân loại'); ?>
+                    <?php echo htmlspecialchars(product_value($product, 'category_name', 'Chưa phân loại')); ?>
                 </div>
-                <div class="product-card__name"><?php echo htmlspecialchars($product->name); ?></div>
+                <div class="product-card__name"><?php echo htmlspecialchars(product_value($product, 'name', '')); ?></div>
                 <div class="product-card__price">
-                    <?php echo number_format($product->price, 0, ',', '.'); ?><span> ₫</span>
+                    <?php echo number_format((float) product_value($product, 'price', 0), 0, ',', '.'); ?><span> ₫</span>
                 </div>
             </div>
 
             <div class="product-card__footer">
                 <form action="/Cart/add" method="POST" class="mb-0" style="flex:1;">
-                    <input type="hidden" name="product_id" value="<?php echo (int)$product->id; ?>">
+                    <input type="hidden" name="product_id" value="<?php echo (int)product_value($product, 'id', ''); ?>">
                     <input type="hidden" name="quantity" value="1">
                     <button type="submit" class="btn btn-success btn-sm w-100" title="Thêm vào giỏ hàng">
                         <i class="fas fa-cart-plus"></i>
                     </button>
                 </form>
-                <a href="/Product/show/<?php echo $product->id; ?>"
+                <a href="/Product/show/<?php echo product_value($product, 'id', ''); ?>"
                    class="btn btn-outline-primary btn-sm" title="Xem chi tiết">
                     <i class="fas fa-eye"></i>
                 </a>
-                <a href="/Product/edit/<?php echo $product->id; ?>"
+                <a href="/Product/edit/<?php echo product_value($product, 'id', ''); ?>"
                    class="btn btn-warning btn-sm" title="Sửa sản phẩm">
                     <i class="fas fa-edit"></i>
                 </a>
-                <a href="/Product/delete/<?php echo $product->id; ?>"
+                <a href="/Product/delete/<?php echo product_value($product, 'id', ''); ?>"
                    class="btn btn-danger btn-sm"
                    title="Xóa sản phẩm">
                     <i class="fas fa-trash"></i>
@@ -586,6 +611,7 @@ $slideGradients = [
 <?php endif; ?>
 
 <?php include 'app/views/shares/footer.php'; ?>
+
 
 
 

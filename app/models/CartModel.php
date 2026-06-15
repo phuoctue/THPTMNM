@@ -72,7 +72,8 @@ class CartModel {
         if (empty($_SESSION['cart'])) return false;
 
         $total = $this->getTotalPrice();
-        $paymentStatus = $paymentMethod === 'banking' ? 'paid' : 'unpaid';
+        $paymentMethod = $this->normalizePaymentMethod($paymentMethod);
+        $paymentStatus = 'unpaid';
 
         try {
             $this->conn->beginTransaction();
@@ -162,7 +163,8 @@ class CartModel {
 
             $this->conn->beginTransaction();
 
-            $paymentStatus = $paymentMethod === 'banking' ? 'paid' : 'unpaid';
+            $paymentMethod = $this->normalizePaymentMethod($paymentMethod);
+            $paymentStatus = 'unpaid';
             $stmt = $this->conn->prepare(
                 "INSERT INTO orders (customer_name, customer_phone, customer_email, customer_address, note, total_price, payment_method, payment_status)
                  VALUES (:name, :phone, :email, :address, :note, :total, :payment_method, :payment_status)"
@@ -318,6 +320,17 @@ class CartModel {
         $product = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $product ?: false;
+    }
+
+    private function normalizePaymentMethod(string $paymentMethod): string
+    {
+        $paymentMethod = strtolower(trim($paymentMethod));
+
+        if (in_array($paymentMethod, ['bank_transfer', 'wallet', 'banking', 'ewallet', 'e_wallet'], true)) {
+            return 'banking';
+        }
+
+        return 'cod';
     }
 }
 ?>

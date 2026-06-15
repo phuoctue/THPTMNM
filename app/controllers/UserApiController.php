@@ -1,7 +1,8 @@
 <?php
 
+require_once 'app/libs/ApiRequest.php';
 require_once 'app/libs/ApiResponse.php';
-require_once 'app/libs/AuthHelper.php';
+require_once 'app/middleware/AuthMiddleware.php';
 require_once 'app/models/UserModel.php';
 
 class UserApiController
@@ -15,13 +16,13 @@ class UserApiController
 
     public function index(): void
     {
-        $this->requireAdmin();
+        AuthMiddleware::admin();
         ApiResponse::success('Users retrieved successfully', $this->userModel->getAll(false));
     }
 
     public function show($id): void
     {
-        $this->requireAdmin();
+        AuthMiddleware::admin();
         $user = $this->userModel->findById((int) $id, true);
         if (!$user) {
             ApiResponse::error('User not found', null, 404);
@@ -32,21 +33,21 @@ class UserApiController
 
     public function update($id): void
     {
-        $this->requireAdmin();
+        $admin = AuthMiddleware::admin();
         $id = (int) $id;
         $current = $this->userModel->findById($id, true);
         if (!$current) {
             ApiResponse::error('User not found', null, 404);
         }
 
-        $data = $this->getJsonInput();
+        $data = ApiRequest::body();
         $errors = $this->validatePayload($data, $id);
         if (!empty($errors)) {
             ApiResponse::error('Validation failed', $errors, 422);
         }
 
         $status = $data['status'] ?? ($current['status'] ?? 'active');
-        if ($id === (int) AuthHelper::getUserId() && $status === 'locked') {
+        if ($id === (int) ($admin['id'] ?? 0) && $status === 'locked') {
             ApiResponse::error('Bạn không thể khóa chính tài khoản admin của mình', null, 422);
         }
 
@@ -63,22 +64,15 @@ class UserApiController
             ApiResponse::error('User update failed', null, 400);
         }
 
-        if ($id === (int) AuthHelper::getUserId()) {
-            $_SESSION['user_name'] = trim((string) ($data['full_name'] ?? $current['full_name'] ?? ''));
-            $_SESSION['user_email'] = trim((string) ($data['email'] ?? $current['email'] ?? ''));
-            $_SESSION['user_role'] = $data['role'] ?? ($current['role'] ?? 'customer');
-            $_SESSION['user_status'] = $status;
-        }
-
         ApiResponse::success('User updated successfully');
     }
 
     public function destroy($id): void
     {
-        $this->requireAdmin();
+        $admin = AuthMiddleware::admin();
         $id = (int) $id;
 
-        if ($id === (int) AuthHelper::getUserId()) {
+        if ($id === (int) ($admin['id'] ?? 0)) {
             ApiResponse::error('Bạn không thể xóa chính tài khoản của mình', null, 422);
         }
 
@@ -88,13 +82,6 @@ class UserApiController
         }
 
         ApiResponse::success('User deleted successfully');
-    }
-
-    private function requireAdmin(): void
-    {
-        if (!AuthHelper::isAdmin()) {
-            ApiResponse::error('Forbidden', null, 403);
-        }
     }
 
     private function validatePayload(array $data, int $ignoreId): array
@@ -128,13 +115,5 @@ class UserApiController
         }
 
         return $errors;
-    }
-
-    private function getJsonInput(): array
-    {
-        $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
-
-        return is_array($data) ? $data : [];
     }
 }

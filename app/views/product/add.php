@@ -1,5 +1,22 @@
 <?php include 'app/views/shares/header.php'; ?>
 
+<?php
+if (!function_exists('category_add_value')) {
+    function category_add_value($category, string $key, mixed $default = null): mixed
+    {
+        if (is_array($category) && array_key_exists($key, $category)) {
+            return $category[$key];
+        }
+
+        if (is_object($category) && isset($category->{$key})) {
+            return $category->{$key};
+        }
+
+        return $default;
+    }
+}
+?>
+
 <style>
 .form-card {
     background: #fff;
@@ -37,7 +54,6 @@
     box-shadow: 0 0 0 3px rgba(79,70,229,.12);
 }
 
-/* image preview */
 #imagePreviewBox {
     margin-top: .75rem;
     display: none;
@@ -63,35 +79,29 @@
 <div class="form-card">
     <h1><i class="fas fa-plus-circle"></i> Thêm sản phẩm</h1>
 
-    <form method="POST"
-          action="/Product/save"
-          enctype="multipart/form-data">
-
+    <form method="POST" action="/Product/save" enctype="multipart/form-data">
         <div class="form-group">
             <label><i class="fas fa-tag mr-1 text-primary"></i> Tên sản phẩm</label>
-            <input type="text" name="name" class="form-control"
-                   placeholder="Nhập tên sản phẩm" required>
+            <input type="text" name="name" class="form-control" placeholder="Nhập tên sản phẩm" required>
         </div>
 
         <div class="form-group">
             <label><i class="fas fa-align-left mr-1 text-primary"></i> Mô tả</label>
-            <textarea name="description" class="form-control" rows="3"
-                      placeholder="Mô tả sản phẩm..."></textarea>
+            <textarea name="description" class="form-control" rows="3" placeholder="Mô tả sản phẩm..."></textarea>
         </div>
 
         <div class="form-row">
             <div class="form-group col-md-6">
                 <label><i class="fas fa-dong-sign mr-1 text-primary"></i> Giá (₫)</label>
-                <input type="number" name="price" class="form-control"
-                       placeholder="0" min="0" required>
+                <input type="number" name="price" class="form-control" placeholder="0" min="0" required>
             </div>
 
             <div class="form-group col-md-6">
                 <label><i class="fas fa-layer-group mr-1 text-primary"></i> Danh mục</label>
                 <select name="category_id" class="form-control">
                     <?php foreach ($categories as $cat): ?>
-                        <option value="<?php echo $cat->id; ?>">
-                            <?php echo htmlspecialchars($cat->name); ?>
+                        <option value="<?php echo (int) category_add_value($cat, 'id', 0); ?>">
+                            <?php echo htmlspecialchars((string) category_add_value($cat, 'name', '')); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -100,8 +110,7 @@
 
         <div class="form-group">
             <label><i class="fas fa-image mr-1 text-primary"></i> Hình ảnh</label>
-            <input type="file" name="image" class="form-control-file"
-                   id="imageInput" accept="image/*">
+            <input type="file" name="image" class="form-control-file" id="imageInput" accept="image/*">
             <div id="imagePreviewBox">
                 <img id="imagePreview" src="#" alt="Preview">
             </div>
@@ -115,7 +124,6 @@
                 <i class="fas fa-arrow-left mr-1"></i> Quay lại
             </a>
         </div>
-
     </form>
 </div>
 

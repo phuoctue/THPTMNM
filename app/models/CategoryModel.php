@@ -1,52 +1,74 @@
 <?php
-class CategoryModel {
-    private $conn;
-    private $table_name = "category";
 
-    public function __construct($db) {
+class CategoryModel
+{
+    private PDO $conn;
+    private string $table = 'category';
+
+    public function __construct($db)
+    {
         $this->conn = $db;
     }
 
-    public function getCategories() {
-        $query = "SELECT * FROM " . $this->table_name . " ORDER BY id DESC";
-        $stmt  = $this->conn->prepare($query);
+    public function getCategories(): array
+    {
+        $stmt = $this->conn->prepare("SELECT * FROM {$this->table} ORDER BY id DESC");
         $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_OBJ);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function getCategoryById($id) {
-        $query = "SELECT * FROM " . $this->table_name . " WHERE id = :id LIMIT 1";
-        $stmt  = $this->conn->prepare($query);
-        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetch(PDO::FETCH_OBJ);
+    public function getCategoryById(int $id): array|false
+    {
+        $stmt = $this->conn->prepare("SELECT * FROM {$this->table} WHERE id = :id LIMIT 1");
+        $stmt->execute([':id' => $id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: false;
     }
 
-    public function addCategory($name, $description = '') {
-        $query = "INSERT INTO " . $this->table_name . " (name, description)
-                  VALUES (:name, :description)";
-        $stmt  = $this->conn->prepare($query);
-        $stmt->bindParam(':name',        $name);
-        $stmt->bindParam(':description', $description);
-        return $stmt->execute();
+    public function create(array $data): int|false
+    {
+        $stmt = $this->conn->prepare("
+            INSERT INTO {$this->table} (name, description)
+            VALUES (:name, :description)
+        ");
+        $ok = $stmt->execute([
+            ':name' => $data['name'],
+            ':description' => $data['description'] ?? null,
+        ]);
+
+        return $ok ? (int) $this->conn->lastInsertId() : false;
     }
 
-    public function updateCategory($id, $name, $description = '') {
-        $query = "UPDATE " . $this->table_name . "
-                  SET name = :name, description = :description
-                  WHERE id = :id";
-        $stmt  = $this->conn->prepare($query);
-        $stmt->bindParam(':id',          $id,          PDO::PARAM_INT);
-        $stmt->bindParam(':name',        $name);
-        $stmt->bindParam(':description', $description);
-        return $stmt->execute();
+    public function update(int $id, array $data): bool
+    {
+        $stmt = $this->conn->prepare("
+            UPDATE {$this->table}
+            SET name = :name, description = :description
+            WHERE id = :id
+        ");
+        return $stmt->execute([
+            ':id' => $id,
+            ':name' => $data['name'],
+            ':description' => $data['description'] ?? null,
+        ]);
     }
 
-    public function deleteCategory($id) {
-        $query = "DELETE FROM " . $this->table_name . " WHERE id = :id";
-        $stmt  = $this->conn->prepare($query);
-        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-        return $stmt->execute();
+    public function delete(int $id): bool
+    {
+        $stmt = $this->conn->prepare("DELETE FROM {$this->table} WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
+
+    public function exists(int $id): bool
+    {
+        $stmt = $this->conn->prepare("SELECT COUNT(*) FROM {$this->table} WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    public function countProducts(int $categoryId): int
+    {
+        $stmt = $this->conn->prepare("SELECT COUNT(*) FROM product WHERE category_id = :category_id");
+        $stmt->execute([':category_id' => $categoryId]);
+        return (int) $stmt->fetchColumn();
     }
 }
-?>

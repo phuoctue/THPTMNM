@@ -1,10 +1,11 @@
 <?php
 
 require_once 'app/config/database.php';
+require_once 'app/libs/ApiRequest.php';
 require_once 'app/libs/ApiResponse.php';
-require_once 'app/libs/AuthHelper.php';
-require_once 'app/models/UserModel.php';
+require_once 'app/middleware/AuthMiddleware.php';
 require_once 'app/models/CartModel.php';
+require_once 'app/models/UserModel.php';
 
 class ProfileApiController
 {
@@ -20,7 +21,7 @@ class ProfileApiController
 
     public function index(): void
     {
-        $user = $this->requireUser();
+        $user = AuthMiddleware::user();
         $userDetails = $this->userModel->findById((int) $user['id']);
 
         if (!$userDetails) {
@@ -32,16 +33,17 @@ class ProfileApiController
 
     public function update(): void
     {
-        $user = $this->requireVerifiedUser();
+        $user = AuthMiddleware::user();
         $userDetails = $this->userModel->findById((int) $user['id']);
 
         if (!$userDetails) {
             ApiResponse::error('User not found', null, 404);
         }
 
-        $fullName = trim((string) ($_POST['full_name'] ?? ''));
-        $phone = trim((string) ($_POST['phone'] ?? ''));
-        $address = trim((string) ($_POST['address'] ?? ''));
+        $body = ApiRequest::body();
+        $fullName = trim((string) ($body['full_name'] ?? ''));
+        $phone = trim((string) ($body['phone'] ?? ''));
+        $address = trim((string) ($body['address'] ?? ''));
 
         $errors = $this->validateProfilePayload($fullName, $phone);
         if (!empty($errors)) {
@@ -64,23 +66,18 @@ class ProfileApiController
         }
 
         $fresh = $this->userModel->findById((int) $user['id']);
-        AuthHelper::setUserSession($fresh ?: array_merge($userDetails, [
-            'full_name' => $fullName,
-            'phone' => $phone,
-            'address' => $address,
-        ]));
-
-        ApiResponse::success('Profile updated successfully');
+        ApiResponse::success('Profile updated successfully', $this->makeUserPayload($fresh ?: $userDetails));
     }
 
     public function changePassword(): void
     {
-        $user = $this->requireVerifiedUser();
+        $user = AuthMiddleware::user();
         $userId = (int) $user['id'];
 
-        $oldPassword = (string) ($_POST['old_password'] ?? '');
-        $newPassword = (string) ($_POST['new_password'] ?? '');
-        $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
+        $body = ApiRequest::body();
+        $oldPassword = (string) ($body['old_password'] ?? '');
+        $newPassword = (string) ($body['new_password'] ?? '');
+        $confirmPassword = (string) ($body['confirm_password'] ?? '');
 
         $errors = $this->validatePasswordPayload($oldPassword, $newPassword, $confirmPassword);
         if (!empty($errors)) {
@@ -92,42 +89,15 @@ class ProfileApiController
         }
 
         $this->userModel->revokeRememberTokenByUserId($userId);
-        $_SESSION = [];
-        session_regenerate_id(true);
-
         ApiResponse::success('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.');
     }
 
     public function orders(): void
     {
-        $user = $this->requireVerifiedUser();
+        $user = AuthMiddleware::user();
         $orders = $this->cartModel->getOrdersByCustomerEmail((string) ($user['email'] ?? ''));
 
         ApiResponse::success('Orders retrieved successfully', $orders);
-    }
-
-    private function requireUser(): array
-    {
-        if (!AuthHelper::isLoggedIn()) {
-            ApiResponse::error('Unauthenticated', null, 401);
-        }
-
-        $user = AuthHelper::getCurrentUser();
-        if (!$user) {
-            ApiResponse::error('Unauthenticated', null, 401);
-        }
-
-        return $user;
-    }
-
-    private function requireVerifiedUser(): array
-    {
-        $user = $this->requireUser();
-        if (empty($user['email_verified_at'])) {
-            ApiResponse::error('Bạn cần xác thực email trước khi sử dụng chức năng này', null, 403);
-        }
-
-        return $user;
     }
 
     private function validateProfilePayload(string $fullName, string $phone): array
@@ -175,17 +145,17 @@ class ProfileApiController
         return $errors;
     }
 
-    private function handleAvatarUpload(int $userId, array $userDetails)
+    private function handleAvatarUpload(int $userId, array $userDetails): string|bool
     {
-        if (empty($_FILES['avatar']) || $_FILES['avatar']['error'] === UPLOAD_ERR_NO_FILE) {
+        if (empty($_FILES['avatar']) || ($_FILES['avatar']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
             return true;
         }
 
         $file = $_FILES['avatar'];
-        if ($file['error'] !== UPLOAD_ERR_OK) {
+        if (($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
             return 'Tải ảnh đại diện thất bại';
         }
-        if ($file['size'] > 2 * 1024 * 1024) {
+        if (($file['size'] ?? 0) > 2 * 1024 * 1024) {
             return 'Ảnh đại diện không được vượt quá 2MB';
         }
 
